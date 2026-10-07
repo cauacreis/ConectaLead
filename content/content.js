@@ -55,6 +55,7 @@
         <button class="cl-tab-btn cl-active" data-tab="ad">📢 Anunciar</button>
         <button class="cl-tab-btn" data-tab="chat">💬 Atendimento</button>
         <button class="cl-tab-btn" data-tab="leads">👥 Leads (<span id="cl-tab-leads-count">0</span>)</button>
+        <button class="cl-tab-btn" data-tab="sheets">⚙️ Planilha</button>
       </div>
 
       <!-- Panel Body -->
@@ -161,6 +162,41 @@
             <div style="text-align: center; color: #94A3B8; font-size: 13px; padding: 20px;">
               Nenhum lead capturado ainda.
             </div>
+          </div>
+        <!-- TAB 4: PLANILHA & CONFIG -->
+        <div class="cl-tab-content" id="cl-tab-sheets">
+          <div class="cl-form-group">
+            <label class="cl-label">Webhook do Google Sheets</label>
+            <input type="text" class="cl-input" id="cl-sheets-webhook-input" placeholder="https://script.google.com/macros/s/.../exec">
+            <div style="font-size: 11px; color: #64748B; margin-top: 4px;">
+              Cole o link do seu Google Apps Script para salvar cada lead em tempo real na sua planilha online.
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-save-sheets" style="flex: 1;">
+              <span>💾 Salvar Link</span>
+            </button>
+            <button class="cl-btn cl-btn-outline cl-btn-sm" id="cl-btn-test-sheets">
+              <span>🧪 Testar Planilha</span>
+            </button>
+          </div>
+
+          <div class="cl-form-group" style="margin-top: 8px;">
+            <label class="cl-label">DDD Padrão da sua Região</label>
+            <input type="text" class="cl-input" id="cl-ddd-input" placeholder="Ex: 11" maxlength="2">
+            <div style="font-size: 11px; color: #64748B; margin-top: 4px;">
+              Usado quando o cliente enviar o telefone sem o DDD.
+            </div>
+          </div>
+
+          <div style="background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px; font-size: 11px; color: #334155; line-height: 1.5; margin-top: 4px;">
+            <strong>Como pegar o link da sua planilha:</strong><br>
+            1. Abra o Google Sheets (<a href="https://sheets.new" target="_blank" style="color: #2563EB;">sheets.new</a>);<br>
+            2. Vá em <em>Extensões &gt; Apps Script</em>;<br>
+            3. Cole o código de <code>google-sheets-script.js</code>;<br>
+            4. Clique em <em>Implantar &gt; Nova implantação &gt; App da Web</em>;<br>
+            5. Copie o URL gerado e cole no campo acima!
           </div>
         </div>
 
@@ -280,6 +316,54 @@
 
     // Export Leads
     exportLeadsBtn.addEventListener('click', exportLeadsAsCsv);
+
+    // Planilha / Google Sheets tab controls
+    const webhookInput = document.getElementById('cl-sheets-webhook-input');
+    const dddInput = document.getElementById('cl-ddd-input');
+    const saveSheetsBtn = document.getElementById('cl-btn-save-sheets');
+    const testSheetsBtn = document.getElementById('cl-btn-test-sheets');
+
+    // Populate saved settings
+    chrome.storage.local.get(['googleSheetsWebhook', 'defaultDdd']).then(data => {
+      if (data.googleSheetsWebhook && webhookInput) webhookInput.value = data.googleSheetsWebhook;
+      if (data.defaultDdd && dddInput) dddInput.value = data.defaultDdd;
+    });
+
+    // Save sheets settings
+    saveSheetsBtn.addEventListener('click', async () => {
+      const url = webhookInput.value.trim();
+      const ddd = (dddInput.value || '').replace(/\D/g, '').slice(0, 2) || '11';
+      defaultDdd = ddd;
+      await chrome.storage.local.set({ googleSheetsWebhook: url, defaultDdd: ddd });
+      showToast('Configurações da planilha salvas!');
+    });
+
+    // Test sheets connection
+    testSheetsBtn.addEventListener('click', async () => {
+      const url = webhookInput.value.trim();
+      if (!url) {
+        showToast('Cole o link da planilha no campo acima.');
+        return;
+      }
+      testSheetsBtn.disabled = true;
+      testSheetsBtn.innerHTML = '<span>Enviando...</span>';
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'TEST_SHEETS_WEBHOOK',
+          payload: { url }
+        });
+        if (resp?.success) {
+          showToast('✅ Linha de teste adicionada na sua planilha!');
+        } else {
+          showToast('Erro ao conectar com o link informado.');
+        }
+      } catch (err) {
+        showToast('Erro: ' + err.message);
+      } finally {
+        testSheetsBtn.disabled = false;
+        testSheetsBtn.innerHTML = '<span>🧪 Testar Planilha</span>';
+      }
+    });
   }
 
   function renderImagePreviews() {
