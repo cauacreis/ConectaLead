@@ -27,11 +27,16 @@
     <section class="stats-card">
       <div class="stat-info">
         <span class="stat-value" id="leads-count">0</span>
-        <span class="stat-label">Leads no WhatsApp</span>
+        <span class="stat-label">Leads Capturados</span>
       </div>
-      <a href="https://www.facebook.com/marketplace" target="_blank" class="btn btn-primary btn-sm">
-        Abrir Marketplace
-      </a>
+      <div style="display: flex; gap: 6px;">
+        <button id="btn-download-csv" class="btn btn-secondary btn-sm" title="Baixar Planilha">
+          📊 Planilha
+        </button>
+        <a href="https://www.facebook.com/marketplace" target="_blank" class="btn btn-primary btn-sm">
+          Marketplace
+        </a>
+      </div>
     </section>
 
     <!-- Settings Form -->
@@ -57,6 +62,12 @@
         <label for="default-ddd" class="label">DDD Padrão da sua Região</label>
         <input type="text" id="default-ddd" class="input" placeholder="Ex: 11" maxlength="2">
         <span class="hint">Usado quando o cliente mandar o telefone sem DDD.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="google-sheets-webhook" class="label">Webhook do Google Sheets (Opcional)</label>
+        <input type="text" id="google-sheets-webhook" class="input" placeholder="https://script.google.com/... ou webhook">
+        <span class="hint">Envia os leads em tempo real para sua planilha na nuvem.</span>
       </div>
 
       <button id="btn-save" class="btn btn-secondary">

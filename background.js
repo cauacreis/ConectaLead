@@ -8,6 +8,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     defaultDdd: '11',
     whatsappMessageTemplate: 'Olá! Está disponível sim. Qual o seu WhatsApp com DDD para eu te passar fotos em alta resolução e combinarmos por lá?',
     autoDetectPhone: true,
+    googleSheetsWebhook: '',
     leads: []
   };
 
@@ -43,14 +44,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleGenerateCopy(message.payload)
       .then(result => sendResponse({ success: true, data: result }))
       .catch(err => sendResponse({ success: false, error: err.message }));
-    return true; // Keep channel open for async response
+    return true;
   }
 
-  if (message.type === 'SAVE_LEAD') {
+  if (message.type === 'SAVE_LEAD' || message.type === 'AUTO_SAVE_LEAD') {
     handleSaveLead(message.payload)
       .then(result => {
         updateBadge();
-        sendResponse({ success: true, lead: result });
+        sendResponse({ success: true, lead: result.lead, isNew: result.isNew });
       })
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -63,30 +64,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleSaveLead(leadData) {
-  const { leads = [] } = await chrome.storage.local.get('leads');
+  const { leads = [], googleSheetsWebhook = '' } = await chrome.storage.local.get(['leads', 'googleSheetsWebhook']);
   
-  // Prevent duplicate phones
-  const cleanPhone = leadData.phone.replace(/\D/g, '');
+  const cleanPhone = (leadData.phone || '').replace(/\D/g, '');
+  if (!cleanPhone) throw new Error('Telefone inválido');
+
   const existingIndex = leads.findIndex(l => l.phone.replace(/\D/g, '') === cleanPhone);
 
   const newLead = {
     id: leadData.id || `lead_${Date.now()}`,
-    name: leadData.name || 'Interessado Marketplace',
+    name: leadData.name || 'Cliente Marketplace',
     phone: cleanPhone,
     formattedPhone: leadData.formattedPhone || leadData.phone,
+    customerMessage: leadData.customerMessage || '',
     product: leadData.product || 'Produto Marketplace',
-    timestamp: new Date().toISOString(),
+    waLink: `https://wa.me/55${cleanPhone}`,
+    timestamp: leadData.timestamp || new Date().toISOString(),
     sourceUrl: leadData.sourceUrl || ''
   };
 
+  let isNew = false;
   if (existingIndex >= 0) {
-    leads[existingIndex] = { ...leads[existingIndex], ...newLead };
+    // Update existing lead if there is new message content
+    leads[existingIndex] = {
+      ...leads[existingIndex],
+      customerMessage: newLead.customerMessage || leads[existingIndex].customerMessage,
+      product: newLead.product || leads[existingIndex].product
+    };
   } else {
+    isNew = true;
     leads.unshift(newLead);
   }
 
   await chrome.storage.local.set({ leads });
-  return newLead;
+
+  // Optional: Send to Google Sheets Webhook automatically if configured
+  if (googleSheetsWebhook && isNew) {
+    try {
+      await fetch(googleSheetsWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: newLead.name,
+          whatsapp: newLead.formattedPhone,
+          mensagem: newLead.customerMessage,
+          produto: newLead.product,
+          link_whatsapp: newLead.waLink,
+          data: new Date(newLead.timestamp).toLocaleString('pt-BR')
+        })
+      });
+    } catch (webhookErr) {
+      console.warn('Aviso: Não foi possível sincronizar com o webhook da planilha:', webhookErr);
+    }
+  }
+
+  return { lead: newLead, isNew };
 }
 
 async function handleGenerateCopy({ prompt, product, price, location }) {

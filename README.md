@@ -37,7 +37,7 @@ Como a extensão foi gerada diretamente na sua máquina, você pode carregá-la 
 
 ---
 
-### 2. Atendendo no Chat & Capturando o WhatsApp
+### 2. Atendendo no Chat & Captura Automática na Planilha
 1. Ao abrir qualquer conversa com um cliente no Facebook Messenger ou Marketplace:
 2. No painel do ConectaLead, clique na aba **💬 Atendimento**;
 3. Use as **Respostas Rápidas**:
@@ -45,13 +45,21 @@ Como a extensão foi gerada diretamente na sua máquina, você pode carregá-la 
    * *Entrega & Retirada:* Solicita o WhatsApp para combinar ponto de entrega ou retirada;
    * *Proposta & PIX:* Confirma a negociação e pede o WhatsApp para acertar o pagamento;
 4. Clique em **Inserir no Chat** para enviar com rapidez;
-5. **Detecção Automática:** Assim que o cliente responder com o número de WhatsApp dele, o ConectaLead destaca o número na tela com o botão **`📲 Chamar no WhatsApp`**, abrindo a conversa no seu WhatsApp Web / Desktop imediatamente.
+5. **Captura Instantânea na Planilha:**
+   * Assim que o cliente responder informando o número de WhatsApp, o robô captura automaticamente:
+     * **Nome do cliente**
+     * **Número do WhatsApp** (formatado e limpo)
+     * **Mensagem original do cliente** (ex: *"meu whats é 11987654321 quero retirar no sábado"*)
+     * **Produto** anunciado
+     * **Data e Hora**
+     * **Link direto do WhatsApp** (`https://wa.me/55...`)
+   * O contato é salvo na **Planilha Interna** e você recebe o aviso instantâneo com o botão **`📲 Chamar no WhatsApp`**.
 
 ---
 
-### 3. Gerenciando seus Leads
-* Na aba **👥 Leads**, visualize todos os contatos capturados com data e hora.
-* Clique em **📥 Exportar** para baixar sua lista completa de clientes em formato `.csv` (compatível com Excel / Google Planilhas).
+### 3. Planilhas e Integração com Google Sheets
+* **Baixar Planilha (Excel/CSV):** Tanto no painel do Facebook quanto no popup da extensão, clique em **Planilha** ou **Exportar** para baixar seu arquivo `.csv` já formatado com acentos (UTF-8) e compatível com Excel e Google Planilhas.
+* **Google Sheets em Tempo Real (Opcional):** Nas configurações do popup, você pode informar um **Webhook do Google Sheets** (via Google Apps Script, Make ou Zapier) para que cada lead capturado seja gravado automaticamente na sua planilha na nuvem no mesmo segundo em que a mensagem chegar.
 
 ---
 

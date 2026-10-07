@@ -475,31 +475,53 @@
     return false;
   }
 
-  // Scan current open chat for phone number
+  // Scan current open chat for phone number and message context
   function scanCurrentChatForPhone() {
-    const textNodes = [];
-    // Search message bubbles in Facebook Messenger
+    // 1. Find participant name in chat header
+    let detectedName = 'Cliente Marketplace';
+    const headerEl = document.querySelector('header h1, header h2, div[role="main"] header span[dir="auto"], div[aria-label*="Bate-papo"] h2');
+    if (headerEl && headerEl.innerText.trim()) {
+      detectedName = headerEl.innerText.trim().split('\n')[0];
+    }
+
+    // 2. Find product in conversation banner if available
+    let detectedProduct = document.getElementById('cl-product-input')?.value || 'Produto Marketplace';
+    const bannerEl = document.querySelector('a[href*="/marketplace/item/"] span[dir="auto"], div[aria-label*="Marketplace"] h3');
+    if (bannerEl && bannerEl.innerText.trim()) {
+      detectedProduct = bannerEl.innerText.trim();
+    }
+
+    // 3. Search message bubbles in Facebook Messenger
     const messages = document.querySelectorAll('div[dir="auto"], span[dir="auto"]');
     for (const msg of messages) {
       const text = msg.innerText || '';
-      if (text.length >= 8 && text.length <= 150) {
+      if (text.length >= 8 && text.length <= 250) {
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
-          handlePhoneDetected(detected);
+          handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
           return;
         }
       }
     }
   }
 
-  function handlePhoneDetected(phoneData) {
-    lastDetectedPhone = phoneData;
+  async function handlePhoneDetected(phoneData, fullMessage = '', clientName = 'Cliente Marketplace', product = 'Produto Marketplace') {
+    lastDetectedPhone = {
+      ...phoneData,
+      customerMessage: fullMessage,
+      name: clientName,
+      product: product
+    };
+
     const card = document.getElementById('cl-detected-card');
     const textEl = document.getElementById('cl-detected-phone-text');
     if (card && textEl) {
       textEl.innerText = phoneData.formatted;
       card.style.display = 'flex';
     }
+
+    // Automatically save to spreadsheet / storage without waiting
+    await saveLeadContact(lastDetectedPhone);
   }
 
   function setupChatObserver() {
@@ -570,10 +592,14 @@
     const lead = {
       phone: phoneData.phone,
       formattedPhone: phoneData.formatted,
-      name: 'Lead Marketplace',
-      product: document.getElementById('cl-product-input')?.value || 'Item Marketplace'
+      name: phoneData.name || 'Cliente Marketplace',
+      customerMessage: phoneData.customerMessage || '',
+      product: phoneData.product || 'Produto Marketplace'
     };
-    await chrome.runtime.sendMessage({ type: 'SAVE_LEAD', payload: lead });
+    const response = await chrome.runtime.sendMessage({ type: 'AUTO_SAVE_LEAD', payload: lead });
+    if (response?.isNew) {
+      showToast('🎯 Telefone detectado e salvo na planilha!');
+    }
     await updateBadgeCount();
   }
 
@@ -613,11 +639,12 @@
       row.className = 'cl-lead-row';
       row.innerHTML = `
         <div class="cl-lead-info">
-          <div class="cl-lead-name">${escapeHtml(lead.name || 'Lead')}</div>
+          <div class="cl-lead-name">${escapeHtml(lead.name || 'Cliente')}</div>
           <div class="cl-lead-phone">${escapeHtml(lead.formattedPhone || lead.phone)}</div>
+          ${lead.customerMessage ? `<div style="font-size: 11px; color: #475569; font-style: italic; margin-top: 2px;">💬 "${escapeHtml(lead.customerMessage.slice(0, 75))}${lead.customerMessage.length > 75 ? '...' : ''}"</div>` : ''}
           <div class="cl-lead-date">${new Date(lead.timestamp).toLocaleDateString('pt-BR')} ${new Date(lead.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
-        <button class="cl-btn cl-btn-success cl-btn-sm cl-open-lead-wa" data-phone="${lead.phone}">
+        <button class="cl-btn cl-btn-success cl-btn-sm cl-open-lead-wa" data-phone="${lead.phone}" style="white-space: nowrap;">
           <span>📲 Chamar</span>
         </button>
       `;
@@ -637,19 +664,24 @@
       return;
     }
 
-    let csv = 'Nome,Telefone,Data,Produto\n';
+    // CSV format with UTF-8 BOM so Excel opens with proper accents and formatting
+    const BOM = '\uFEFF';
+    let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link WhatsApp;Data e Hora\n';
+    
     leads.forEach(l => {
-      csv += `"${l.name}","${l.phone}","${l.timestamp}","${l.product}"\n`;
+      const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
+      const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
+      csv += `"${l.name}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${l.product}";"${l.waLink}";"${dateFormatted}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `leads-conectalead-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `planilha-leads-conectalead-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Leads exportados com sucesso!');
+    showToast('Planilha baixada com sucesso!');
   }
 
   function showToast(msg) {
