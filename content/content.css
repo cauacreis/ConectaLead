@@ -1,0 +1,445 @@
+/* ConectaLead - Stylesheet isolada para injeção no Facebook */
+
+/* Floating Launcher Button */
+#conectalead-launcher {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483640;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  color: #FFFFFF;
+  padding: 12px 18px;
+  border-radius: 9999px;
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4), 0 8px 10px -6px rgba(37, 99, 235, 0.2);
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#conectalead-launcher:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 28px -5px rgba(37, 99, 235, 0.5);
+  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%);
+}
+
+#conectalead-launcher .cl-badge {
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Main Injected Panel */
+#conectalead-panel {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  bottom: 24px;
+  width: 390px;
+  max-width: calc(100vw - 48px);
+  z-index: 2147483645;
+  background: #FFFFFF;
+  color: #0F172A;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.08);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+#conectalead-panel.cl-hidden {
+  transform: translateX(110%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Header */
+.cl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.cl-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.cl-header-title .cl-icon {
+  font-size: 18px;
+}
+
+.cl-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.cl-close-btn:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+/* Navigation Tabs */
+.cl-tabs {
+  display: flex;
+  background: #F1F5F9;
+  padding: 6px;
+  gap: 4px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.cl-tab-btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748B;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cl-tab-btn.cl-active {
+  background: #FFFFFF;
+  color: #2563EB;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Content Area */
+.cl-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cl-tab-content {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cl-tab-content.cl-active {
+  display: flex;
+}
+
+/* Form Groups */
+.cl-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cl-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cl-input, .cl-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0F172A;
+  background: #FFFFFF;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  font-family: inherit;
+}
+
+.cl-input:focus, .cl-textarea:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.cl-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* File Upload Box */
+.cl-upload-dropzone {
+  border: 2px dashed #94A3B8;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  background: #F8FAFC;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cl-upload-dropzone:hover {
+  border-color: #2563EB;
+  background: #EFF6FF;
+}
+
+.cl-upload-icon {
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+
+.cl-upload-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.cl-upload-hint {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 4px;
+}
+
+/* Previews Grid */
+.cl-images-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cl-image-thumb-wrapper {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+}
+
+.cl-image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cl-remove-thumb {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Buttons */
+.cl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  user-select: none;
+  text-decoration: none;
+}
+
+.cl-btn-primary {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.cl-btn-primary:hover {
+  background: #1D4ED8;
+}
+
+.cl-btn-success {
+  background: #10B981;
+  color: #FFFFFF;
+}
+
+.cl-btn-success:hover {
+  background: #059669;
+}
+
+.cl-btn-outline {
+  background: transparent;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+}
+
+.cl-btn-outline:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+}
+
+.cl-btn-sm {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* WhatsApp Alert Card */
+.cl-whatsapp-card {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cl-whatsapp-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+}
+
+.cl-whatsapp-phone {
+  font-size: 16px;
+  font-weight: 800;
+  color: #047857;
+  letter-spacing: 0.5px;
+}
+
+/* Quick Replies List */
+.cl-replies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-reply-item {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #1E293B;
+  transition: all 0.15s ease;
+}
+
+.cl-reply-item:hover {
+  border-color: #2563EB;
+  background: #EFF6FF;
+}
+
+.cl-reply-item strong {
+  display: block;
+  font-size: 12px;
+  color: #2563EB;
+  margin-bottom: 4px;
+}
+
+/* Leads List in Tab */
+.cl-leads-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-lead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+}
+
+.cl-lead-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cl-lead-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.cl-lead-phone {
+  font-size: 12px;
+  color: #059669;
+  font-weight: 700;
+}
+
+.cl-lead-date {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* Feedback Toast */
+.cl-toast {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0F172A;
+  color: #FFFFFF;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.cl-toast.cl-show {
+  opacity: 1;
+}

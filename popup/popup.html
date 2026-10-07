@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConectaLead</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-area">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h1 class="title">ConectaLead</h1>
+          <p class="subtitle">Co-piloto para Marketplace</p>
+        </div>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span class="status-text">Ativo</span>
+      </div>
+    </header>
+
+    <!-- Quick Stats -->
+    <section class="stats-card">
+      <div class="stat-info">
+        <span class="stat-value" id="leads-count">0</span>
+        <span class="stat-label">Leads no WhatsApp</span>
+      </div>
+      <a href="https://www.facebook.com/marketplace" target="_blank" class="btn btn-primary btn-sm">
+        Abrir Marketplace
+      </a>
+    </section>
+
+    <!-- Settings Form -->
+    <main class="settings-section">
+      <h2 class="section-title">Configurações</h2>
+
+      <div class="form-group">
+        <label for="ai-provider" class="label">Provedor de IA</label>
+        <select id="ai-provider" class="select">
+          <option value="gemini">Google Gemini (Recomendado)</option>
+          <option value="openai">OpenAI (ChatGPT)</option>
+          <option value="local">Modo Inteligente Integrado (Sem Chave)</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="api-key-group">
+        <label for="api-key" class="label">Chave de API (Opcional)</label>
+        <input type="password" id="api-key" class="input" placeholder="Cole sua chave aqui...">
+        <span class="hint" id="api-hint">Para títulos e descrições ainda mais personalizadas.</span>
+      </div>
+
+      <div class="form-group">
+        <label for="default-ddd" class="label">DDD Padrão da sua Região</label>
+        <input type="text" id="default-ddd" class="input" placeholder="Ex: 11" maxlength="2">
+        <span class="hint">Usado quando o cliente mandar o telefone sem DDD.</span>
+      </div>
+
+      <button id="btn-save" class="btn btn-secondary">
+        Salvar Configurações
+      </button>
+
+      <div id="save-status" class="save-status">Salvo com sucesso!</div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>ConectaLead v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
