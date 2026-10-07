@@ -61,6 +61,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     URL.revokeObjectURL(url);
   });
 
+  // Test Google Sheets Webhook
+  const testWebhookBtn = document.getElementById('btn-test-webhook');
+  testWebhookBtn.addEventListener('click', async () => {
+    const url = webhookInput.value.trim();
+    if (!url) {
+      alert('Cole o URL do App da Web do Google Apps Script primeiro.');
+      return;
+    }
+
+    testWebhookBtn.disabled = true;
+    testWebhookBtn.innerText = 'Enviando...';
+
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: 'TEST_SHEETS_WEBHOOK',
+        payload: { url }
+      });
+
+      if (resp?.success) {
+        alert('✅ Conexão bem-sucedida! Uma linha de teste foi adicionada à sua Planilha Google.');
+      } else {
+        alert('Falha ao conectar. Verifique se o URL foi gerado como "App da Web" com acesso para "Qualquer pessoa".');
+      }
+    } catch (err) {
+      alert('Erro na conexão: ' + err.message);
+    } finally {
+      testWebhookBtn.disabled = false;
+      testWebhookBtn.innerText = '🧪 Testar Conexão';
+    }
+  });
+
   saveBtn.addEventListener('click', async () => {
     const selectedProvider = providerSelect.value;
     const keyValue = apiKeyInput.value.trim();

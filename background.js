@@ -57,11 +57,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'TEST_SHEETS_WEBHOOK') {
+    handleTestSheetsWebhook(message.payload?.url)
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'UPDATE_BADGE') {
     updateBadge().then(() => sendResponse({ success: true }));
     return true;
   }
 });
+
+async function handleTestSheetsWebhook(webhookUrl) {
+  if (!webhookUrl) throw new Error('URL do Webhook não informada');
+
+  const testPayload = {
+    nome: 'Teste de Integração (ConectaLead)',
+    whatsapp: '(11) 99999-8888',
+    mensagem: 'Mensagem de teste automático para verificar a planilha.',
+    produto: 'Item de Teste',
+    link_whatsapp: 'https://wa.me/5511999998888',
+    data: new Date().toLocaleString('pt-BR')
+  };
+
+  await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(testPayload)
+  });
+
+  return { success: true };
+}
 
 async function handleSaveLead(leadData) {
   const { leads = [], googleSheetsWebhook = '' } = await chrome.storage.local.get(['leads', 'googleSheetsWebhook']);
@@ -98,12 +126,12 @@ async function handleSaveLead(leadData) {
 
   await chrome.storage.local.set({ leads });
 
-  // Optional: Send to Google Sheets Webhook automatically if configured
+  // Automatic real-time forwarding to Google Sheets
   if (googleSheetsWebhook && isNew) {
     try {
       await fetch(googleSheetsWebhook, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           nome: newLead.name,
           whatsapp: newLead.formattedPhone,
@@ -114,7 +142,7 @@ async function handleSaveLead(leadData) {
         })
       });
     } catch (webhookErr) {
-      console.warn('Aviso: Não foi possível sincronizar com o webhook da planilha:', webhookErr);
+      console.warn('Aviso: Não foi possível sincronizar com a planilha do Google:', webhookErr);
     }
   }
 
