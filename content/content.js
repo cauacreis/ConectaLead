@@ -26,8 +26,11 @@
 
     buildUI();
     setupListeners();
+    setupScheduleListeners();
     setupChatObserver();
     updateBadgeCount();
+    updateScheduleCount();
+    checkAndApplyPendingScheduledAd();
   }
 
   function buildUI() {
@@ -57,7 +60,8 @@
       <!-- Tabs Navigation -->
       <div class="cl-tabs">
         <button class="cl-tab-btn cl-active" data-tab="ad">📢 Anunciar</button>
-        <button class="cl-tab-btn" data-tab="chat">💬 Atendimento</button>
+        <button class="cl-tab-btn" data-tab="schedule">📅 Agendar (<span id="cl-tab-schedule-count">0</span>)</button>
+        <button class="cl-tab-btn" data-tab="chat">💬 Chat</button>
         <button class="cl-tab-btn" data-tab="leads">👥 Leads (<span id="cl-tab-leads-count">0</span>)</button>
         <button class="cl-tab-btn" data-tab="sheets">⚙️ Planilha</button>
       </div>
@@ -106,7 +110,124 @@
           </div>
         </div>
 
-        <!-- TAB 2: ATENDIMENTO / CHAT -->
+        <!-- TAB AGENDAR (LOTE E INDIVIDUAL) -->
+        <div class="cl-tab-content" id="cl-tab-schedule">
+          
+          <!-- Banner quando anúncio agendado foi preenchido -->
+          <div id="cl-sched-auto-banner" class="cl-banner-success" style="display: none;">
+            <div style="font-weight: 700; margin-bottom: 4px;">🎉 Anúncio Agendado Preenchido!</div>
+            <span id="cl-sched-auto-text">Os dados deste anúncio foram inseridos no Facebook. Confira as informações e selecione as fotos para publicar.</span>
+          </div>
+
+          <!-- Subtabs: Em Lote vs Individual -->
+          <div class="cl-subtabs">
+            <button class="cl-subtab-btn cl-active" id="cl-subtab-batch-btn">⚡ Agendar em Lote (Vários)</button>
+            <button class="cl-subtab-btn" id="cl-subtab-single-btn">➕ Agendar Individual</button>
+          </div>
+
+          <!-- MODO 1: AGENDAMENTO EM LOTE -->
+          <div id="cl-sched-mode-batch" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Hero Box: Carregar 15 Casas de SP -->
+            <div class="cl-batch-hero">
+              <div class="cl-batch-hero-title">
+                <span>🏢 15 Modelos de Casas (São Paulo)</span>
+              </div>
+              <div class="cl-batch-hero-desc">
+                Agende em 1 clique todos os 15 modelos baixados (Tatuapé, Santana, Mooca, etc.) com intervalo programado para evitar bloqueios.
+              </div>
+              <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-load-15-houses">
+                <span>📦 Carregar os 15 Modelos na Fila</span>
+              </button>
+            </div>
+
+            <!-- Opções de Tempo do Lote -->
+            <div style="display: flex; gap: 10px;">
+              <div class="cl-form-group" style="flex: 1.2;">
+                <label class="cl-label">1º Anúncio Inicia Em</label>
+                <input type="datetime-local" class="cl-input" id="cl-batch-start-time" style="font-size: 12px; padding: 8px 10px;">
+              </div>
+              <div class="cl-form-group" style="flex: 1;">
+                <label class="cl-label">Intervalo</label>
+                <select class="cl-select" id="cl-batch-interval" style="font-size: 12px; padding: 8px 10px;">
+                  <option value="15">A cada 15 min</option>
+                  <option value="30" selected>A cada 30 min (Recomendado)</option>
+                  <option value="45">A cada 45 min</option>
+                  <option value="60">A cada 1 hora</option>
+                  <option value="120">A cada 2 horas</option>
+                  <option value="1440">1 por dia</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Resumo do Lote Preparado -->
+            <div id="cl-batch-prepared-card" style="display: none; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 10px; padding: 10px 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <strong style="font-size: 12px; color: #1E293B;" id="cl-batch-items-title">0 anúncios preparados</strong>
+                <button id="cl-btn-clear-batch-prep" style="background: transparent; border: none; font-size: 11px; color: #EF4444; cursor: pointer;">Limpar</button>
+              </div>
+              <div id="cl-batch-items-preview" style="font-size: 11px; color: #64748B; max-height: 80px; overflow-y: auto; line-height: 1.4;">
+                Nenhum anúncio carregado ainda.
+              </div>
+            </div>
+
+            <!-- Botão de Confirmar Agendamento em Lote -->
+            <button class="cl-btn cl-btn-success" id="cl-btn-confirm-batch" disabled>
+              <span>🚀 Agendar Todos na Fila</span>
+            </button>
+          </div>
+
+          <!-- MODO 2: AGENDAMENTO INDIVIDUAL -->
+          <div id="cl-sched-mode-single" style="display: none; flex-direction: column; gap: 10px;">
+            <div class="cl-form-group">
+              <label class="cl-label">Título do Anúncio</label>
+              <input type="text" class="cl-input" id="cl-single-title" placeholder="Ex: Casa com 3 quartos em SP">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+              <div class="cl-form-group" style="flex: 1;">
+                <label class="cl-label">Preço (R$)</label>
+                <input type="text" class="cl-input" id="cl-single-price" placeholder="Ex: 480000">
+              </div>
+              <div class="cl-form-group" style="flex: 1.2;">
+                <label class="cl-label">Bairro / Região</label>
+                <input type="text" class="cl-input" id="cl-single-location" placeholder="Ex: Tatuapé - SP">
+              </div>
+            </div>
+
+            <div class="cl-form-group">
+              <label class="cl-label">Data e Hora de Publicação</label>
+              <input type="datetime-local" class="cl-input" id="cl-single-time">
+            </div>
+
+            <div class="cl-form-group">
+              <label class="cl-label">Descrição</label>
+              <textarea class="cl-textarea" id="cl-single-desc" rows="3" placeholder="Descrição do anúncio..."></textarea>
+            </div>
+
+            <button class="cl-btn cl-btn-primary" id="cl-btn-save-single">
+              <span>📅 Salvar Agendamento</span>
+            </button>
+          </div>
+
+          <!-- SEÇÃO DA FILA DE AGENDAMENTOS ATIVOS -->
+          <div style="border-top: 1px solid #E2E8F0; padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="cl-label">Fila de Agendamentos (<span id="cl-queue-total-count">0</span>)</label>
+              <button class="cl-btn cl-btn-outline cl-btn-sm" id="cl-btn-clear-completed-sched" style="padding: 3px 8px; font-size: 10px;">
+                🗑️ Limpar Concluídos
+              </button>
+            </div>
+
+            <div class="cl-queue-list" id="cl-queue-container">
+              <div style="text-align: center; color: #94A3B8; font-size: 12px; padding: 18px;">
+                Nenhum anúncio agendado no momento.
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 3: ATENDIMENTO / CHAT -->
         <div class="cl-tab-content" id="cl-tab-chat">
           
           <!-- Detected Phone Card (Hidden initially) -->
@@ -265,6 +386,7 @@
       panel.classList.toggle('cl-hidden', !isPanelOpen);
       if (isPanelOpen) {
         if (activeTab === 'leads') renderLeadsList();
+        if (activeTab === 'schedule') renderScheduleQueue();
         scanCurrentChatForPhone();
       }
     });
@@ -285,6 +407,7 @@
         const activeContent = document.getElementById(`cl-tab-${activeTab}`);
         if (activeContent) activeContent.classList.add('cl-active');
 
+        if (activeTab === 'schedule') renderScheduleQueue();
         if (activeTab === 'leads') renderLeadsList();
         if (activeTab === 'chat') scanCurrentChatForPhone();
       });
@@ -910,6 +1033,379 @@
     a.click();
     URL.revokeObjectURL(url);
     showToast('Planilha baixada com sucesso!');
+  }
+
+  // ==========================================
+  // AGENDADOR DE ANÚNCIOS (LOTE & INDIVIDUAL)
+  // ==========================================
+  let preparedBatchAds = [];
+
+  function setupScheduleListeners() {
+    const batchSubtabBtn = document.getElementById('cl-subtab-batch-btn');
+    const singleSubtabBtn = document.getElementById('cl-subtab-single-btn');
+    const batchMode = document.getElementById('cl-sched-mode-batch');
+    const singleMode = document.getElementById('cl-sched-mode-single');
+
+    const load15HousesBtn = document.getElementById('cl-btn-load-15-houses');
+    const confirmBatchBtn = document.getElementById('cl-btn-confirm-batch');
+    const clearPrepBtn = document.getElementById('cl-btn-clear-batch-prep');
+    const batchStartTimeInput = document.getElementById('cl-batch-start-time');
+    const batchIntervalSelect = document.getElementById('cl-batch-interval');
+    const batchPreparedCard = document.getElementById('cl-batch-prepared-card');
+    const batchItemsTitle = document.getElementById('cl-batch-items-title');
+    const batchItemsPreview = document.getElementById('cl-batch-items-preview');
+
+    const saveSingleBtn = document.getElementById('cl-btn-save-single');
+    const singleTitleInput = document.getElementById('cl-single-title');
+    const singlePriceInput = document.getElementById('cl-single-price');
+    const singleLocationInput = document.getElementById('cl-single-location');
+    const singleTimeInput = document.getElementById('cl-single-time');
+    const singleDescInput = document.getElementById('cl-single-desc');
+
+    const clearCompletedBtn = document.getElementById('cl-btn-clear-completed-sched');
+
+    // Default datetime-local to 10 minutes from now
+    const now = new Date(Date.now() + 10 * 60 * 1000);
+    const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    if (batchStartTimeInput) batchStartTimeInput.value = localIso;
+    if (singleTimeInput) singleTimeInput.value = localIso;
+
+    // Subtab toggle: Batch vs Single
+    batchSubtabBtn?.addEventListener('click', () => {
+      batchSubtabBtn.classList.add('cl-active');
+      singleSubtabBtn.classList.remove('cl-active');
+      batchMode.style.display = 'flex';
+      singleMode.style.display = 'none';
+    });
+
+    singleSubtabBtn?.addEventListener('click', () => {
+      singleSubtabBtn.classList.add('cl-active');
+      batchSubtabBtn.classList.remove('cl-active');
+      batchMode.style.display = 'none';
+      singleMode.style.display = 'flex';
+    });
+
+    // 1-Click Load 15 Houses Preset
+    load15HousesBtn?.addEventListener('click', async () => {
+      load15HousesBtn.disabled = true;
+      load15HousesBtn.innerHTML = '<span>Carregando...</span>';
+
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: 'GET_SP_HOUSES_PRESETS' });
+        const presets = resp?.presets || [];
+
+        if (presets.length > 0) {
+          preparedBatchAds = presets;
+          batchPreparedCard.style.display = 'block';
+          batchItemsTitle.innerText = `${presets.length} casas de São Paulo prontas`;
+          batchItemsPreview.innerHTML = presets.map((p, i) =>
+            `<div style="padding: 2px 0;">• <strong>${i + 1}.</strong> ${escapeHtml(p.title)} (R$ ${p.price})</div>`
+          ).join('');
+          confirmBatchBtn.disabled = false;
+          showToast('15 modelos carregados! Escolha o intervalo e clique em Agendar.');
+        } else {
+          showToast('Não foi possível carregar os modelos.');
+        }
+      } catch (err) {
+        showToast('Erro: ' + err.message);
+      } finally {
+        load15HousesBtn.disabled = false;
+        load15HousesBtn.innerHTML = '<span>📦 Carregar os 15 Modelos na Fila</span>';
+      }
+    });
+
+    // Clear Prepared Batch
+    clearPrepBtn?.addEventListener('click', () => {
+      preparedBatchAds = [];
+      batchPreparedCard.style.display = 'none';
+      confirmBatchBtn.disabled = true;
+    });
+
+    // Confirm Batch Scheduling
+    confirmBatchBtn?.addEventListener('click', async () => {
+      if (preparedBatchAds.length === 0) {
+        showToast('Nenhum anúncio no lote.');
+        return;
+      }
+
+      const startTime = batchStartTimeInput.value;
+      const intervalMinutes = Number(batchIntervalSelect.value) || 30;
+
+      confirmBatchBtn.disabled = true;
+      confirmBatchBtn.innerHTML = '<span>Agendando...</span>';
+
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'SCHEDULE_BATCH_ADS',
+          payload: {
+            ads: preparedBatchAds,
+            startTime,
+            intervalMinutes
+          }
+        });
+
+        if (resp?.success) {
+          const totalScheduled = resp.data?.count || preparedBatchAds.length;
+          showToast(`🚀 ${totalScheduled} anúncios agendados com sucesso!`);
+          preparedBatchAds = [];
+          batchPreparedCard.style.display = 'none';
+          confirmBatchBtn.disabled = true;
+          renderScheduleQueue();
+        } else {
+          showToast('Erro ao agendar anúncios.');
+        }
+      } catch (err) {
+        showToast('Erro: ' + err.message);
+      } finally {
+        confirmBatchBtn.disabled = false;
+        confirmBatchBtn.innerHTML = '<span>🚀 Agendar Todos na Fila</span>';
+      }
+    });
+
+    // Save Single Scheduled Ad
+    saveSingleBtn?.addEventListener('click', async () => {
+      const title = singleTitleInput.value.trim();
+      const price = singlePriceInput.value.trim();
+      const location = singleLocationInput.value.trim();
+      const scheduledTime = singleTimeInput.value;
+      const description = singleDescInput.value.trim();
+
+      if (!title) {
+        showToast('Informe o título do anúncio.');
+        return;
+      }
+      if (!scheduledTime) {
+        showToast('Informe a data e o horário.');
+        return;
+      }
+
+      saveSingleBtn.disabled = true;
+      saveSingleBtn.innerHTML = '<span>Agendando...</span>';
+
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'SCHEDULE_AD',
+          payload: {
+            title,
+            price,
+            location,
+            description,
+            scheduledTime
+          }
+        });
+
+        if (resp?.success) {
+          showToast('Anúncio agendado com sucesso!');
+          singleTitleInput.value = '';
+          singlePriceInput.value = '';
+          singleLocationInput.value = '';
+          singleDescInput.value = '';
+          renderScheduleQueue();
+        } else {
+          showToast('Erro ao agendar anúncio.');
+        }
+      } catch (err) {
+        showToast('Erro: ' + err.message);
+      } finally {
+        saveSingleBtn.disabled = false;
+        saveSingleBtn.innerHTML = '<span>📅 Salvar Agendamento</span>';
+      }
+    });
+
+    // Clear Completed Scheduled Ads
+    clearCompletedBtn?.addEventListener('click', async () => {
+      await chrome.runtime.sendMessage({ type: 'CLEAR_COMPLETED_SCHEDULED' });
+      renderScheduleQueue();
+      showToast('Itens concluídos removidos.');
+    });
+  }
+
+  async function renderScheduleQueue() {
+    const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+    const container = document.getElementById('cl-queue-container');
+    const totalCountEl = document.getElementById('cl-queue-total-count');
+
+    if (totalCountEl) totalCountEl.innerText = String(scheduledAds.length);
+    updateScheduleCount();
+
+    if (!container) return;
+
+    if (scheduledAds.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; color: #94A3B8; font-size: 12px; padding: 18px;">
+          Nenhum anúncio agendado no momento.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+
+    scheduledAds.forEach((ad) => {
+      const card = document.createElement('div');
+      card.className = 'cl-queue-card';
+
+      const timeDate = new Date(ad.scheduledTime);
+      const isPast = timeDate.getTime() < Date.now();
+      const timeFormatted = formatScheduleTime(timeDate);
+
+      let badgeHtml = '';
+      if (ad.status === 'completed') {
+        badgeHtml = '<span class="cl-queue-badge status-completed">✅ Preenchido</span>';
+      } else if (ad.status === 'ready_to_fill') {
+        badgeHtml = '<span class="cl-queue-badge status-ready">🚀 Em Execução</span>';
+      } else {
+        badgeHtml = `<span class="cl-queue-badge status-scheduled">⏳ ${isPast ? 'Pendente' : 'Agendado'}</span>`;
+      }
+
+      card.innerHTML = `
+        <div class="cl-queue-header">
+          <div class="cl-queue-time">
+            <span>⏰</span>
+            <span>${timeFormatted}</span>
+          </div>
+          ${badgeHtml}
+        </div>
+        <div class="cl-queue-title">${escapeHtml(ad.title || 'Anúncio sem título')}</div>
+        <div class="cl-queue-meta">
+          <span>💰 R$ ${escapeHtml(ad.price || '0')}</span>
+          <span>📍 ${escapeHtml(ad.location || 'Brasil')}</span>
+          ${ad.folderName ? `<span>📁 ${escapeHtml(ad.folderName)}</span>` : ''}
+        </div>
+        <div class="cl-queue-actions">
+          <button class="cl-btn cl-btn-primary cl-btn-sm cl-btn-fill-now" data-id="${ad.id}" style="padding: 4px 8px; font-size: 11px;">
+            ⚡ Preencher Agora
+          </button>
+          <button class="cl-btn cl-btn-outline cl-btn-sm cl-btn-delete-sched" data-id="${ad.id}" style="padding: 4px 8px; font-size: 11px; color: #EF4444; border-color: #FECACA;">
+            🗑️
+          </button>
+        </div>
+      `;
+
+      // Fill now listener
+      const fillNowBtn = card.querySelector('.cl-btn-fill-now');
+      fillNowBtn.addEventListener('click', async () => {
+        const isCreatePage = window.location.href.includes('/marketplace/create') ||
+                             window.location.href.includes('/marketplace/item');
+        if (isCreatePage) {
+          const res = fillFacebookMarketplaceFields(ad.title, ad.price, ad.description, ad.location, []);
+          if (res.success) {
+            ad.status = 'completed';
+            ad.completedAt = new Date().toISOString();
+            const { scheduledAds: current = [] } = await chrome.storage.local.get('scheduledAds');
+            const idx = current.findIndex(a => a.id === ad.id);
+            if (idx !== -1) current[idx] = ad;
+            await chrome.storage.local.set({ scheduledAds: current });
+            renderScheduleQueue();
+            showToast('Anúncio preenchido no Facebook!');
+          } else {
+            showToast('Campos não encontrados. Certifique-se de estar em Criar Anúncio.');
+          }
+        } else {
+          showToast('Abrindo Facebook Marketplace para preencher...');
+          await chrome.runtime.sendMessage({
+            type: 'TRIGGER_AD_NOW',
+            payload: { id: ad.id }
+          });
+        }
+      });
+
+      // Delete listener
+      const deleteBtn = card.querySelector('.cl-btn-delete-sched');
+      deleteBtn.addEventListener('click', async () => {
+        await chrome.runtime.sendMessage({
+          type: 'CANCEL_SCHEDULED_AD',
+          payload: { id: ad.id }
+        });
+        renderScheduleQueue();
+        showToast('Agendamento removido.');
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function formatScheduleTime(d) {
+    if (isNaN(d.getTime())) return '--';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = d.toDateString() === tomorrow.toDateString();
+
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    if (isToday) return `Hoje às ${timeStr}`;
+    if (isTomorrow) return `Amanhã às ${timeStr}`;
+    
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month} às ${timeStr}`;
+  }
+
+  async function updateScheduleCount() {
+    const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+    const pendingCount = scheduledAds.filter(a => a.status === 'scheduled').length;
+    const tabCountEl = document.getElementById('cl-tab-schedule-count');
+    if (tabCountEl) tabCountEl.innerText = String(pendingCount);
+  }
+
+  async function checkAndApplyPendingScheduledAd() {
+    const isCreatePage = window.location.href.includes('/marketplace/create') ||
+                         window.location.href.includes('/marketplace/item');
+    if (!isCreatePage) return;
+
+    const data = await chrome.storage.local.get(['pendingAdToFill', 'scheduledAds']);
+    const pendingAd = data.pendingAdToFill;
+    if (!pendingAd) return;
+
+    let attempts = 0;
+    const maxAttempts = 20;
+
+    const tryFill = () => {
+      attempts++;
+      const result = fillFacebookMarketplaceFields(
+        pendingAd.title,
+        pendingAd.price,
+        pendingAd.description,
+        pendingAd.location,
+        []
+      );
+
+      if (result.success) {
+        const banner = document.getElementById('cl-sched-auto-banner');
+        const bannerText = document.getElementById('cl-sched-auto-text');
+        if (banner && bannerText) {
+          banner.style.display = 'block';
+          bannerText.innerHTML = `O anúncio <strong>"${escapeHtml(pendingAd.title)}"</strong> (R$ ${escapeHtml(pendingAd.price || 'a combinar')}) foi preenchido com sucesso.<br>` +
+            (pendingAd.folderName ? `📁 Selecione as fotos da pasta <strong>${escapeHtml(pendingAd.folderName)}</strong> para publicar.` : 'Selecione as fotos para publicar.');
+        }
+
+        const panel = document.getElementById('conectalead-panel');
+        if (panel) {
+          panel.classList.remove('cl-hidden');
+          isPanelOpen = true;
+        }
+
+        const scheduledAds = data.scheduledAds || [];
+        const index = scheduledAds.findIndex(a => a.id === pendingAd.id);
+        if (index !== -1) {
+          scheduledAds[index].status = 'completed';
+          scheduledAds[index].completedAt = new Date().toISOString();
+        }
+
+        chrome.storage.local.set({ pendingAdToFill: null, scheduledAds });
+        updateScheduleCount();
+        showToast('⚡ Anúncio agendado preenchido no Facebook!');
+      } else if (attempts < maxAttempts) {
+        setTimeout(tryFill, 800);
+      }
+    };
+
+    setTimeout(tryFill, 1200);
   }
 
   function showToast(msg) {

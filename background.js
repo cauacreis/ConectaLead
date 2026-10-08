@@ -1,4 +1,9 @@
 // ConectaLead - Background Service Worker (Manifest V3)
+try {
+  importScripts('presets.js');
+} catch (e) {
+  console.warn('Aviso: presets.js não pôde ser carregado via importScripts', e);
+}
 
 chrome.runtime.onInstalled.addListener(async () => {
   const defaults = {
@@ -9,7 +14,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     whatsappMessageTemplate: 'Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina',
     autoDetectPhone: true,
     googleSheetsWebhook: '',
-    leads: []
+    leads: [],
+    scheduledAds: [],
+    pendingAdToFill: null
   };
 
   const current = await chrome.storage.local.get(Object.keys(defaults));
@@ -68,7 +75,185 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     updateBadge().then(() => sendResponse({ success: true }));
     return true;
   }
+
+  if (message.type === 'GET_SP_HOUSES_PRESETS') {
+    const presets = (typeof SP_HOUSES_PRESETS !== 'undefined') ? SP_HOUSES_PRESETS : [];
+    sendResponse({ success: true, presets });
+    return true;
+  }
+
+  if (message.type === 'SCHEDULE_AD') {
+    handleScheduleAd(message.payload)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'SCHEDULE_BATCH_ADS') {
+    handleScheduleBatchAds(message.payload)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'CANCEL_SCHEDULED_AD') {
+    handleCancelScheduledAd(message.payload?.id)
+      .then(result => sendResponse({ success: true }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'TRIGGER_AD_NOW') {
+    handleTriggerAdNow(message.payload?.id)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'CLEAR_COMPLETED_SCHEDULED') {
+    handleClearCompletedScheduled()
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });
+
+// Alarm Listener for Scheduled Ads
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (!alarm.name.startsWith('sched_')) return;
+
+  try {
+    const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+    const adIndex = scheduledAds.findIndex(a => a.id === alarm.name);
+    if (adIndex === -1) return;
+
+    const ad = scheduledAds[adIndex];
+    if (ad.status !== 'scheduled') return;
+
+    // Set ad ready to fill
+    ad.status = 'ready_to_fill';
+    await chrome.storage.local.set({ scheduledAds, pendingAdToFill: ad });
+
+    // Show desktop notification
+    try {
+      chrome.notifications.create(`notif_${ad.id}`, {
+        type: 'basic',
+        iconUrl: 'icons/icon-128.png',
+        title: 'ConectaLead - Hora do Anúncio!',
+        message: `Abrindo Marketplace para preencher: ${ad.title}`,
+        priority: 2
+      });
+    } catch (e) {
+      console.warn('Notificação desktop não suportada:', e);
+    }
+
+    // Open Marketplace Create Ad page
+    chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/item' });
+  } catch (err) {
+    console.error('Erro ao processar disparo de alarme agendado:', err);
+  }
+});
+
+async function handleScheduleAd(adData) {
+  const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+  const id = adData.id || `sched_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const scheduledTimeMs = new Date(adData.scheduledTime).getTime();
+
+  if (isNaN(scheduledTimeMs)) {
+    throw new Error('Data ou horário de agendamento inválido.');
+  }
+
+  const newAd = {
+    id,
+    title: adData.title,
+    price: adData.price || '',
+    location: adData.location || '',
+    description: adData.description || '',
+    folderName: adData.folderName || '',
+    scheduledTime: adData.scheduledTime,
+    status: 'scheduled',
+    createdAt: new Date().toISOString()
+  };
+
+  scheduledAds.push(newAd);
+  scheduledAds.sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime());
+  await chrome.storage.local.set({ scheduledAds });
+
+  // Schedule alarm (if time is in future; if past/now, fires almost immediately)
+  const when = Math.max(Date.now() + 500, scheduledTimeMs);
+  await chrome.alarms.create(id, { when });
+
+  return newAd;
+}
+
+async function handleScheduleBatchAds({ ads, startTime, intervalMinutes = 30 }) {
+  if (!Array.isArray(ads) || ads.length === 0) {
+    throw new Error('Nenhum anúncio informado para agendamento em lote.');
+  }
+
+  const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+  const startMs = startTime ? new Date(startTime).getTime() : (Date.now() + 5 * 60 * 1000);
+  const stepMs = Math.max(1, Number(intervalMinutes)) * 60 * 1000;
+
+  const addedAds = [];
+
+  for (let i = 0; i < ads.length; i++) {
+    const raw = ads[i];
+    const adTimeMs = startMs + (i * stepMs);
+    const id = `sched_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`;
+
+    const adObj = {
+      id,
+      title: raw.title,
+      price: raw.price || '',
+      location: raw.location || '',
+      description: raw.description || '',
+      folderName: raw.folderName || '',
+      scheduledTime: new Date(adTimeMs).toISOString(),
+      status: 'scheduled',
+      createdAt: new Date().toISOString()
+    };
+
+    scheduledAds.push(adObj);
+    addedAds.push(adObj);
+
+    await chrome.alarms.create(id, { when: adTimeMs });
+  }
+
+  scheduledAds.sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime());
+  await chrome.storage.local.set({ scheduledAds });
+
+  return { count: addedAds.length, ads: addedAds };
+}
+
+async function handleCancelScheduledAd(adId) {
+  if (!adId) return;
+  const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+  const updated = scheduledAds.filter(a => a.id !== adId);
+  await chrome.alarms.clear(adId);
+  await chrome.storage.local.set({ scheduledAds: updated });
+  return true;
+}
+
+async function handleTriggerAdNow(adId) {
+  const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+  const ad = scheduledAds.find(a => a.id === adId);
+  if (!ad) throw new Error('Anúncio não encontrado na fila.');
+
+  await chrome.alarms.clear(adId);
+  ad.status = 'ready_to_fill';
+  await chrome.storage.local.set({ scheduledAds, pendingAdToFill: ad });
+
+  chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/item' });
+  return ad;
+}
+
+async function handleClearCompletedScheduled() {
+  const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
+  const remaining = scheduledAds.filter(a => a.status === 'scheduled');
+  await chrome.storage.local.set({ scheduledAds: remaining });
+  return { count: remaining.length };
+}
 
 async function handleTestSheetsWebhook(webhookUrl) {
   if (!webhookUrl) throw new Error('URL do Webhook não informada');

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveBtn = document.getElementById('btn-save');
   const saveStatus = document.getElementById('save-status');
   const leadsCountEl = document.getElementById('leads-count');
+  const scheduledCountEl = document.getElementById('scheduled-count');
   const apiHint = document.getElementById('api-hint');
 
   // Load current settings
@@ -18,7 +19,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'openaiApiKey',
     'defaultDdd',
     'googleSheetsWebhook',
-    'leads'
+    'leads',
+    'scheduledAds'
   ]);
 
   const currentProvider = settings.aiProvider || 'gemini';
@@ -28,6 +30,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const leads = settings.leads || [];
   leadsCountEl.innerText = String(leads.length);
+
+  const scheduledAds = settings.scheduledAds || [];
+  const pendingScheduled = scheduledAds.filter(a => a.status === 'scheduled');
+  if (scheduledCountEl) scheduledCountEl.innerText = String(pendingScheduled.length);
 
   updateKeyField(currentProvider, settings);
 
