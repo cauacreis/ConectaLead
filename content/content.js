@@ -8,6 +8,9 @@
   let activeTab = 'ad';
   let defaultDdd = '11';
   let lastDetectedPhone = null;
+  let autoPilotEnabled = false;
+  let autoRepliedChatIds = new Set();
+  let autoPilotTimer = null;
 
   // Initialize
   init();
@@ -17,8 +20,9 @@
     if (document.getElementById('conectalead-launcher')) return;
 
     // Load settings
-    const settings = await chrome.storage.local.get(['defaultDdd']);
+    const settings = await chrome.storage.local.get(['defaultDdd', 'autoPilotEnabled']);
     if (settings.defaultDdd) defaultDdd = settings.defaultDdd;
+    autoPilotEnabled = !!settings.autoPilotEnabled;
 
     buildUI();
     setupListeners();
@@ -127,6 +131,25 @@
               <span>✅ Contato Salvo!</span>
             </div>
             <span>O zap do cliente já foi guardado. O bot pausou nesta conversa para você chamar direto no WhatsApp como uma pessoa normal.</span>
+          </div>
+
+          <!-- Piloto Automático & Ação Imediata de Conversão -->
+          <div id="cl-autopilot-container" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 14px;">
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 13px; font-weight: 700; color: #1E293B;">🤖 Piloto Automático</span>
+                <span style="font-size: 11px; color: #64748B;">Mandou msg, pede o zap sozinho</span>
+              </div>
+              <label class="cl-switch">
+                <input type="checkbox" id="cl-toggle-autopilot">
+                <span class="cl-slider"></span>
+              </label>
+            </div>
+
+            <!-- Botão 1-Clique Destaque -->
+            <button class="cl-btn cl-btn-success" id="cl-btn-ask-wa-now" style="width: 100%; padding: 13px; font-size: 13px; font-weight: 700;">
+              <span>⚡ Pedir WhatsApp no Chat (1-Clique)</span>
+            </button>
           </div>
 
           <!-- Quick Request WhatsApp Messages (Casual e 100% Humano) -->
@@ -294,6 +317,32 @@
       });
     });
 
+    // Piloto Automático Toggle
+    const autoPilotToggle = document.getElementById('cl-toggle-autopilot');
+    if (autoPilotToggle) {
+      autoPilotToggle.checked = autoPilotEnabled;
+      autoPilotToggle.addEventListener('change', async (e) => {
+        autoPilotEnabled = e.target.checked;
+        await chrome.storage.local.set({ autoPilotEnabled });
+        showToast(autoPilotEnabled ? '🤖 Piloto Automático ativado!' : 'Piloto Automático desativado');
+        if (autoPilotEnabled) scanCurrentChatForPhone();
+      });
+    }
+
+    // Botão 1-Clique para pedir o zap imediatamente no chat
+    const askWaBtn = document.getElementById('cl-btn-ask-wa-now');
+    if (askWaBtn) {
+      askWaBtn.addEventListener('click', () => {
+        const defaultMsg = 'Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina';
+        const sent = sendTextMessageToFacebookChat(defaultMsg);
+        if (sent) {
+          showToast('Mensagem enviada no chat!');
+        } else {
+          showToast('Abra a conversa do cliente no Facebook.');
+        }
+      });
+    }
+
     // Send to Facebook Chat
     sendChatBtn.addEventListener('click', () => {
       const text = customChatMsg.value.trim();
@@ -301,9 +350,9 @@
         showToast('Selecione ou digite uma mensagem primeiro.');
         return;
       }
-      const inserted = insertTextIntoFacebookChat(text);
+      const inserted = sendTextMessageToFacebookChat(text);
       if (inserted) {
-        showToast('Mensagem inserida no chat!');
+        showToast('Mensagem enviada no chat!');
       } else {
         showToast('Abra uma conversa no Messenger para inserir a mensagem.');
       }
@@ -556,7 +605,6 @@
 
   // Chat Messenger interaction
   function insertTextIntoFacebookChat(text) {
-    // Look for active messenger input
     const chatInput = document.querySelector('div[role="textbox"][contenteditable="true"]') ||
                       document.querySelector('div[aria-label*="Mensagem"][contenteditable="true"]') ||
                       document.querySelector('div[aria-label*="Message"][contenteditable="true"]');
@@ -569,6 +617,38 @@
       return true;
     }
     return false;
+  }
+
+  function sendTextMessageToFacebookChat(text) {
+    const inserted = insertTextIntoFacebookChat(text);
+    if (!inserted) return false;
+
+    // Small delay to simulate natural human typing before dispatching enter/send
+    setTimeout(() => {
+      const chatInput = document.querySelector('div[role="textbox"][contenteditable="true"]') ||
+                        document.querySelector('div[aria-label*="Mensagem"][contenteditable="true"]') ||
+                        document.querySelector('div[aria-label*="Message"][contenteditable="true"]');
+
+      const sendBtn = document.querySelector('div[aria-label="Pressione Enter para enviar"]') ||
+                      document.querySelector('div[aria-label*="Enviar"]') ||
+                      document.querySelector('div[aria-label*="Send"]');
+
+      if (sendBtn) {
+        sendBtn.click();
+      } else if (chatInput) {
+        const enterEvt = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        });
+        chatInput.dispatchEvent(enterEvt);
+      }
+    }, 200);
+
+    return true;
   }
 
   // Scan current open chat for phone number and message context
@@ -587,6 +667,8 @@
       detectedProduct = bannerEl.innerText.trim();
     }
 
+    const chatId = `${detectedName}_${detectedProduct}`;
+
     // 3. Search message bubbles in Facebook Messenger
     const messages = document.querySelectorAll('div[dir="auto"], span[dir="auto"]');
     let phoneFound = false;
@@ -597,6 +679,10 @@
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
           phoneFound = true;
+          if (autoPilotTimer) {
+            clearTimeout(autoPilotTimer);
+            autoPilotTimer = null;
+          }
           handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
           return;
         }
@@ -606,6 +692,22 @@
     // If no phone found in current conversation, reset to active reply mode
     if (!phoneFound) {
       resetChatToActiveMode();
+
+      // Piloto Automático: Se ativado, responde pedindo o zap com delay humano
+      if (autoPilotEnabled && messages.length > 0 && !autoPilotTimer && !autoRepliedChatIds.has(chatId)) {
+        autoPilotTimer = setTimeout(() => {
+          autoPilotTimer = null;
+          // Confirma se o telefone ainda não foi enviado e se ainda não respondemos
+          if (!lastDetectedPhone && !autoRepliedChatIds.has(chatId)) {
+            const defaultMsg = 'Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina';
+            const sent = sendTextMessageToFacebookChat(defaultMsg);
+            if (sent) {
+              autoRepliedChatIds.add(chatId);
+              showToast('⚡ Resposta enviada pelo Piloto Automático!');
+            }
+          }
+        }, 2500); // 2.5 segundos para parecer digitação humana e respeitar anti-bot
+      }
     }
   }
 
