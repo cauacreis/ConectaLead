@@ -291,6 +291,10 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
   }
 ];
 
+SP_HOUSES_PRESETS.forEach(p => {
+  p.hideFromFriends = true;
+});
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { SP_HOUSES_PRESETS };
 }

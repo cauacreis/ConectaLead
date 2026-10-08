@@ -170,6 +170,7 @@ async function handleScheduleAd(adData) {
     location: adData.location || '',
     description: adData.description || '',
     folderName: adData.folderName || '',
+    hideFromFriends: adData.hideFromFriends !== false,
     scheduledTime: adData.scheduledTime,
     status: 'scheduled',
     createdAt: new Date().toISOString()
@@ -264,6 +265,7 @@ async function handleScheduleBatchAds({ ads, startTime, intervalMinutes = 'marke
       location: raw.location || '',
       description: raw.description || '',
       folderName: raw.folderName || '',
+      hideFromFriends: raw.hideFromFriends !== false,
       scheduledTime: new Date(adTimeMs).toISOString(),
       status: 'scheduled',
       createdAt: new Date().toISOString()

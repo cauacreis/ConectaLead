@@ -100,6 +100,14 @@
             </div>
           </div>
 
+          <!-- Opção Ocultar dos Amigos -->
+          <div style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer; user-select: none;">
+              <input type="checkbox" id="cl-hide-friends-input" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
+              <span>🔒 <strong>Ocultar dos amigos</strong> (aparece só para quem busca na região)</span>
+            </label>
+          </div>
+
           <!-- Fill Button -->
           <button class="cl-btn cl-btn-primary" id="cl-btn-fill-ad">
             <span>⚡ Preencher Anúncio no Facebook</span>
@@ -170,6 +178,14 @@
               </div>
             </div>
 
+            <!-- Opção Ocultar dos Amigos no Lote -->
+            <div>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="cl-batch-hide-friends" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
+                <span>🔒 <strong>Ocultar anúncios dos amigos</strong> (aparece só para quem busca na região)</span>
+              </label>
+            </div>
+
             <!-- Botão de Confirmar Agendamento em Lote -->
             <button class="cl-btn cl-btn-success" id="cl-btn-confirm-batch" disabled>
               <span>🚀 Agendar Todos na Fila</span>
@@ -202,6 +218,14 @@
             <div class="cl-form-group">
               <label class="cl-label">Descrição</label>
               <textarea class="cl-textarea" id="cl-single-desc" rows="3" placeholder="Descrição do anúncio..."></textarea>
+            </div>
+
+            <!-- Opção Ocultar dos Amigos no Individual -->
+            <div>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="cl-single-hide-friends" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
+                <span>🔒 <strong>Ocultar dos amigos</strong> no Facebook</span>
+              </label>
             </div>
 
             <button class="cl-btn cl-btn-primary" id="cl-btn-save-single">
@@ -605,7 +629,8 @@
       };
 
       // 2. Locate Facebook Marketplace elements
-      const result = fillFacebookMarketplaceFields(copyData.title, price, copyData.description, location, selectedFiles);
+      const hideFriends = document.getElementById('cl-hide-friends-input')?.checked ?? true;
+      const result = fillFacebookMarketplaceFields(copyData.title, price, copyData.description, location, selectedFiles, hideFriends);
 
       if (result.success) {
         showToast('Anúncio preenchido com sucesso!');
@@ -621,7 +646,49 @@
     }
   }
 
-  function fillFacebookMarketplaceFields(title, price, description, location, files) {
+  function applyHideFromFriends(enable = true) {
+    const keywords = ['ocultar dos amigos', 'ocultar para amigos', 'hide from friends'];
+
+    // 1. Check all elements with role="switch" or checkbox inputs
+    const toggles = Array.from(document.querySelectorAll('input[type="checkbox"], [role="switch"], input[role="switch"]'));
+    for (const t of toggles) {
+      const ariaLabel = (t.getAttribute('aria-label') || '').toLowerCase();
+      const containerText = (t.closest('label')?.innerText || t.closest('div[class]')?.innerText || '').toLowerCase();
+
+      if (keywords.some(kw => ariaLabel.includes(kw) || containerText.includes(kw))) {
+        const isChecked = t.checked === true || t.getAttribute('aria-checked') === 'true';
+        if (enable && !isChecked) {
+          t.click();
+          return true;
+        } else if (!enable && isChecked) {
+          t.click();
+          return true;
+        }
+        return true;
+      }
+    }
+
+    // 2. Scan text nodes across spans and divs to find the switch
+    const allSpans = Array.from(document.querySelectorAll('span, div, label, p'));
+    for (const s of allSpans) {
+      const text = (s.textContent || '').trim().toLowerCase();
+      if (keywords.some(kw => text === kw || text.startsWith(kw))) {
+        const row = s.closest('div[role="button"]') || s.closest('label') || s.closest('div[class]');
+        const toggle = row?.querySelector('input[type="checkbox"], [role="switch"]') || row;
+        if (toggle) {
+          const isChecked = toggle.checked === true || toggle.getAttribute('aria-checked') === 'true';
+          if (enable && !isChecked) {
+            toggle.click();
+            return true;
+          }
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function fillFacebookMarketplaceFields(title, price, description, location, files, hideFromFriends = true) {
     let filledCount = 0;
 
     // Helper: Find element by various attributes
@@ -649,7 +716,7 @@
 
     // 1. Título
     const titleInput = findInputByLabelOrPlaceholder(['Título', 'Title', 'O que você está vendendo']);
-    if (titleInput) {
+    if (titleInput && title) {
       setReactInputValue(titleInput, title);
       filledCount++;
     }
@@ -665,7 +732,7 @@
     const descEl = document.querySelector('textarea[aria-label*="Descrição"], textarea[placeholder*="Descrição"]') ||
                    document.querySelector('div[role="textbox"][aria-label*="Descrição"]') ||
                    findInputByLabelOrPlaceholder(['Descrição', 'Description']);
-    if (descEl) {
+    if (descEl && description) {
       if (descEl.tagName.toLowerCase() === 'textarea') {
         setReactTextareaValue(descEl, description);
       } else {
@@ -674,7 +741,28 @@
       filledCount++;
     }
 
-    // 4. Injetar Fotos
+    // 4. Localização (visível apenas na região)
+    if (location) {
+      const locInput = findInputByLabelOrPlaceholder(['Localização', 'Location', 'Local', 'Cidade']);
+      if (locInput) {
+        setReactInputValue(locInput, location);
+        filledCount++;
+        setTimeout(() => {
+          const option = document.querySelector('div[role="listbox"] div[role="option"], ul[role="listbox"] li');
+          if (option) option.click();
+        }, 500);
+      }
+    }
+
+    // 5. Ocultar dos amigos (Hide from friends)
+    if (hideFromFriends !== false) {
+      applyHideFromFriends(true);
+      setTimeout(() => applyHideFromFriends(true), 400);
+      setTimeout(() => applyHideFromFriends(true), 1200);
+      filledCount++;
+    }
+
+    // 6. Injetar Fotos
     if (files && files.length > 0) {
       const fileInput = document.querySelector('input[type="file"][accept*="image"]') ||
                         document.querySelector('input[type="file"]');
@@ -1135,11 +1223,17 @@
       confirmBatchBtn.disabled = true;
       confirmBatchBtn.innerHTML = '<span>Agendando...</span>';
 
+      const hideFriends = document.getElementById('cl-batch-hide-friends')?.checked ?? true;
+      const adsToSchedule = preparedBatchAds.map(ad => ({
+        ...ad,
+        hideFromFriends: hideFriends
+      }));
+
       try {
         const resp = await chrome.runtime.sendMessage({
           type: 'SCHEDULE_BATCH_ADS',
           payload: {
-            ads: preparedBatchAds,
+            ads: adsToSchedule,
             startTime,
             intervalMinutes
           }
@@ -1183,6 +1277,8 @@
       saveSingleBtn.disabled = true;
       saveSingleBtn.innerHTML = '<span>Agendando...</span>';
 
+      const hideFriends = document.getElementById('cl-single-hide-friends')?.checked ?? true;
+
       try {
         const resp = await chrome.runtime.sendMessage({
           type: 'SCHEDULE_AD',
@@ -1191,7 +1287,8 @@
             price,
             location,
             description,
-            scheduledTime
+            scheduledTime,
+            hideFromFriends: hideFriends
           }
         });
 
@@ -1289,7 +1386,7 @@
         const isCreatePage = window.location.href.includes('/marketplace/create') ||
                              window.location.href.includes('/marketplace/item');
         if (isCreatePage) {
-          const res = fillFacebookMarketplaceFields(ad.title, ad.price, ad.description, ad.location, []);
+          const res = fillFacebookMarketplaceFields(ad.title, ad.price, ad.description, ad.location, [], ad.hideFromFriends !== false);
           if (res.success) {
             ad.status = 'completed';
             ad.completedAt = new Date().toISOString();
@@ -1373,7 +1470,8 @@
         pendingAd.price,
         pendingAd.description,
         pendingAd.location,
-        []
+        [],
+        pendingAd.hideFromFriends !== false
       );
 
       if (result.success) {
