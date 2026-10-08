@@ -130,10 +130,10 @@
             <!-- Hero Box: Carregar 15 Casas de SP -->
             <div class="cl-batch-hero">
               <div class="cl-batch-hero-title">
-                <span>🏢 15 Modelos de Casas (São Paulo)</span>
+                <span>🏡 15 Modelos de Casas Prontos</span>
               </div>
               <div class="cl-batch-hero-desc">
-                Agende em 1 clique todos os 15 modelos baixados (Tatuapé, Santana, Mooca, etc.) com intervalo programado para evitar bloqueios.
+                Agende em 1 clique todos os 15 modelos com fotos reais e descrições otimizadas com intervalo programado.
               </div>
               <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-load-15-houses">
                 <span>📦 Carregar os 15 Modelos na Fila</span>
@@ -1097,7 +1097,7 @@
         if (presets.length > 0) {
           preparedBatchAds = presets;
           batchPreparedCard.style.display = 'block';
-          batchItemsTitle.innerText = `${presets.length} casas de São Paulo prontas`;
+          batchItemsTitle.innerText = `${presets.length} anúncios prontos para agendar`;
           batchItemsPreview.innerHTML = presets.map((p, i) =>
             `<div style="padding: 2px 0;">• <strong>${i + 1}.</strong> ${escapeHtml(p.title)} (R$ ${p.price})</div>`
           ).join('');
