@@ -11,6 +11,8 @@
   let autoPilotEnabled = false;
   let autoRepliedChatIds = new Set();
   let autoPilotTimer = null;
+  let activePreset = null;
+  let loadedHousePresets = [];
 
   // Initialize
   init();
@@ -71,14 +73,22 @@
 
         <!-- TAB 1: ANUNCIAR -->
         <div class="cl-tab-content cl-active" id="cl-tab-ad">
+          <!-- House Preset Selector -->
+          <div class="cl-form-group">
+            <label class="cl-label">🏡 Modelo Pronto (Palhoça / Região)</label>
+            <select class="cl-select" id="cl-preset-house-select">
+              <option value="">-- Escolher modelo (preenche fotos e dados) --</option>
+            </select>
+          </div>
+
           <!-- File Upload Zone -->
           <div class="cl-form-group">
-            <label class="cl-label">Fotos do Produto</label>
+            <label class="cl-label">Fotos do Anúncio (8 fotos automáticas)</label>
             <input type="file" id="cl-file-input" multiple accept="image/*" style="display: none;">
             <div class="cl-upload-dropzone" id="cl-dropzone">
               <div class="cl-upload-icon">📁</div>
               <div class="cl-upload-text">Selecionar fotos do computador</div>
-              <div class="cl-upload-hint">Clique para abrir o Windows Explorer</div>
+              <div class="cl-upload-hint">Ou escolha um modelo pronto acima</div>
             </div>
             <div class="cl-images-preview" id="cl-images-preview"></div>
           </div>
@@ -449,6 +459,42 @@
       }
     });
 
+    // Preset Houses Dropdown in Tab 1
+    const houseSelect = document.getElementById('cl-preset-house-select');
+    chrome.runtime.sendMessage({ type: 'GET_SP_HOUSES_PRESETS' }).then(resp => {
+      loadedHousePresets = resp?.presets || [];
+      if (houseSelect && loadedHousePresets.length > 0) {
+        loadedHousePresets.forEach((p, idx) => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${idx + 1}. ${p.title} (R$ ${p.price})`;
+          houseSelect.appendChild(opt);
+        });
+      }
+    });
+
+    houseSelect?.addEventListener('change', async (e) => {
+      const selectedId = e.target.value;
+      if (!selectedId) {
+        activePreset = null;
+        return;
+      }
+      const preset = loadedHousePresets.find(p => p.id === selectedId);
+      if (!preset) return;
+
+      activePreset = preset;
+      document.getElementById('cl-product-input').value = preset.title;
+      document.getElementById('cl-price-input').value = preset.price;
+      document.getElementById('cl-location-input').value = preset.location;
+      const hideCheck = document.getElementById('cl-hide-friends-input');
+      if (hideCheck) hideCheck.checked = true;
+
+      showToast('Carregando 8 fotos do modelo...');
+      selectedFiles = await loadPhotosForFolder(preset.folderName);
+      renderImagePreviews();
+      showToast(`✅ Modelo "${preset.title}" carregado com 8 fotos!`);
+    });
+
     // Preencher Anúncio no Facebook
     fillAdBtn.addEventListener('click', handleFillAd);
 
@@ -602,6 +648,269 @@
     });
   }
 
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  const HOUSE_PHOTO_FILENAMES = [
+    '01_fachada.jpg',
+    '02_sala_vazia.jpg',
+    '03_quarto_01.jpg',
+    '04_quarto_02.jpg',
+    '05_quarto_03.jpg',
+    '06_banheiro_01.jpg',
+    '07_banheiro_02.jpg',
+    '08_cozinha_vazia.jpg'
+  ];
+
+  async function loadPhotosForFolder(folderName) {
+    if (!folderName) return [];
+    const files = [];
+    for (const fname of HOUSE_PHOTO_FILENAMES) {
+      try {
+        const url = chrome.runtime.getURL(`modelos_casas/${folderName}/${fname}`);
+        const res = await fetch(url);
+        if (res.ok) {
+          const blob = await res.blob();
+          const file = new File([blob], fname, { type: 'image/jpeg' });
+          files.push(file);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar foto do pacote:', fname, err);
+      }
+    }
+    return files;
+  }
+
+  async function injectMarketplacePhotos(files) {
+    if (!files || files.length === 0) return false;
+
+    // Retry finding the file input up to 10 times (~4s)
+    let fileInput = null;
+    for (let i = 0; i < 10; i++) {
+      fileInput = document.querySelector('input[type="file"][accept*="image"]') ||
+                  document.querySelector('input[type="file"]');
+      if (fileInput) break;
+      await sleep(400);
+    }
+
+    if (!fileInput) {
+      console.warn('Input de fotos do Facebook não encontrado.');
+      return false;
+    }
+
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) {
+        dt.items.add(f);
+      }
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    } catch (err) {
+      console.error('Falha ao injetar fotos:', err);
+      return false;
+    }
+  }
+
+  async function selectMarketplaceCategory(preferredCategory = 'Imóveis') {
+    const categoryLabels = ['categoria', 'category'];
+
+    // 1. Locate category trigger
+    let trigger = null;
+    const candidates = Array.from(document.querySelectorAll('label, div[role="combobox"], div[aria-haspopup="listbox"], div[role="button"]'));
+    for (const el of candidates) {
+      const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+      const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+      if (categoryLabels.some(kw => txt.startsWith(kw) || ariaLabel.includes(kw))) {
+        trigger = el.querySelector('div[role="combobox"], div[aria-haspopup], div[tabindex="0"], div[role="button"]') || el;
+        break;
+      }
+    }
+
+    if (!trigger) {
+      trigger = document.querySelector('[aria-label*="Categoria" i], [aria-label*="Category" i]');
+    }
+
+    if (!trigger) {
+      return false;
+    }
+
+    // Scroll into view & click trigger
+    trigger.scrollIntoView({ behavior: 'instant', block: 'center' });
+    trigger.click();
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await sleep(400);
+
+    // If search input exists in the popup dialog, type 'Imóveis'
+    const searchInput = document.querySelector('div[role="dialog"] input, div[role="listbox"] input, input[placeholder*="Pesquisar" i]');
+    if (searchInput) {
+      setReactInputValue(searchInput, 'Imóveis');
+      await sleep(400);
+    }
+
+    const targetCategories = [
+      'imóveis', 'imoveis', 'propriedades', 'casas', 'moradia', 'outros', 'diversos', 'classificados'
+    ];
+
+    const options = Array.from(document.querySelectorAll('div[role="option"], div[role="menuitem"], div[role="button"], span[dir="auto"], li[role="option"]'));
+    for (const kw of targetCategories) {
+      for (const opt of options) {
+        const text = (opt.innerText || opt.textContent || '').trim().toLowerCase();
+        if (text === kw || text.startsWith(kw) || text.includes(kw)) {
+          const clickable = opt.closest('div[role="option"]') || opt.closest('div[role="button"]') || opt;
+          clickable.scrollIntoView({ behavior: 'instant', block: 'center' });
+          clickable.click();
+          clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+          // If a subcategory dialog/listbox opened (e.g. Imóveis -> Casas), click first matching subcategory
+          await sleep(400);
+          const subOptions = Array.from(document.querySelectorAll('div[role="option"], div[role="menuitem"], span[dir="auto"]'));
+          for (const sub of subOptions) {
+            const subTxt = (sub.innerText || '').trim().toLowerCase();
+            if (subTxt.includes('casa') || subTxt.includes('venda') || subTxt.includes('imóve') || subTxt.includes('outros')) {
+              const subClickable = sub.closest('div[role="option"]') || sub.closest('div[role="button"]') || sub;
+              subClickable.click();
+              break;
+            }
+          }
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  async function selectMarketplaceCondition(preferred = 'Novo') {
+    const conditionLabels = ['condição', 'condicao', 'condition'];
+
+    let trigger = null;
+    const candidates = Array.from(document.querySelectorAll('label, div[role="combobox"], div[aria-haspopup="listbox"], div[role="button"]'));
+    for (const el of candidates) {
+      const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+      const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+      if (conditionLabels.some(kw => txt.startsWith(kw) || ariaLabel.includes(kw))) {
+        trigger = el.querySelector('div[role="combobox"], div[aria-haspopup], div[tabindex="0"], div[role="button"]') || el;
+        break;
+      }
+    }
+
+    if (!trigger) {
+      trigger = document.querySelector('[aria-label*="Condição" i], [aria-label*="Condition" i]');
+    }
+
+    if (!trigger) {
+      return false;
+    }
+
+    trigger.scrollIntoView({ behavior: 'instant', block: 'center' });
+    trigger.click();
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await sleep(400);
+
+    const options = Array.from(document.querySelectorAll('div[role="option"], div[role="menuitem"], div[role="button"], span[dir="auto"], li[role="option"]'));
+
+    // Priority 1: Match 'Novo' or 'New'
+    for (const opt of options) {
+      const txt = (opt.innerText || opt.textContent || '').trim().toLowerCase();
+      if (txt === 'novo' || txt.startsWith('novo') || txt === 'new') {
+        const clickable = opt.closest('div[role="option"]') || opt.closest('div[role="button"]') || opt;
+        clickable.scrollIntoView({ behavior: 'instant', block: 'center' });
+        clickable.click();
+        clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        return true;
+      }
+    }
+
+    // Priority 2: Match 'Usado - como novo'
+    for (const opt of options) {
+      const txt = (opt.innerText || opt.textContent || '').trim().toLowerCase();
+      if (txt.includes('como novo') || txt.includes('like new')) {
+        const clickable = opt.closest('div[role="option"]') || opt.closest('div[role="button"]') || opt;
+        clickable.scrollIntoView({ behavior: 'instant', block: 'center' });
+        clickable.click();
+        clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function scrollFormToBottom() {
+    const divs = Array.from(document.querySelectorAll('div'));
+    for (const d of divs) {
+      try {
+        if (d.scrollHeight > d.clientHeight && d.clientHeight > 200) {
+          const style = window.getComputedStyle(d);
+          if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+            d.scrollTop = d.scrollHeight;
+          }
+        }
+      } catch (e) {}
+    }
+    try { window.scrollTo(0, document.body.scrollHeight); } catch (e) {}
+  }
+
+  function applyHideFromFriends(enable = true) {
+    scrollFormToBottom();
+
+    const keywords = [
+      'ocultar dos amigos',
+      'ocultar para amigos',
+      'privar para amigos',
+      'privar dos amigos',
+      'hide from friends'
+    ];
+
+    function toggleElement(el) {
+      const isChecked = el.getAttribute('aria-checked') === 'true' || el.checked === true;
+      if (enable && !isChecked) {
+        el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        el.click();
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        return true;
+      } else if (!enable && isChecked) {
+        el.scrollIntoView({ behavior: 'instant', block: 'center' });
+        el.click();
+        return true;
+      }
+      return isChecked === enable;
+    }
+
+    // 1. Check all elements with role="switch" or checkbox inputs
+    const toggles = Array.from(document.querySelectorAll('[role="switch"], input[type="checkbox"], input[role="switch"]'));
+    for (const t of toggles) {
+      const ariaLabel = (t.getAttribute('aria-label') || '').toLowerCase();
+      const parentLabel = t.closest('label');
+      const parentRow = t.closest('div[role="button"]') || t.closest('div[class]') || t.parentElement;
+      const combinedText = ((parentLabel?.innerText || '') + ' ' + (parentRow?.innerText || '') + ' ' + ariaLabel).toLowerCase();
+
+      if (keywords.some(kw => combinedText.includes(kw))) {
+        return toggleElement(t);
+      }
+    }
+
+    // 2. Scan text across spans and divs to find the matching row
+    const allSpans = Array.from(document.querySelectorAll('span, div, label, p'));
+    for (const s of allSpans) {
+      const text = (s.textContent || '').trim().toLowerCase();
+      if (keywords.some(kw => text === kw || text.startsWith(kw) || text.includes(kw))) {
+        const row = s.closest('label') || s.closest('div[role="button"]') || s.closest('div[class]');
+        if (row) {
+          const sw = row.querySelector('[role="switch"], input[type="checkbox"]') || row;
+          return toggleElement(sw);
+        }
+      }
+    }
+
+    return false;
+  }
+
   async function handleFillAd() {
     const product = document.getElementById('cl-product-input').value.trim();
     const price = document.getElementById('cl-price-input').value.trim();
@@ -617,78 +926,55 @@
     fillBtn.innerHTML = '<span>Processando...</span>';
 
     try {
-      // 1. Generate Title & Copy
-      const response = await chrome.runtime.sendMessage({
-        type: 'GENERATE_AI_COPY',
-        payload: { product, price, location }
-      });
+      let finalTitle = product;
+      let finalDescription = '';
 
-      const copyData = response?.data || {
-        title: product,
-        description: `${product}\nValor: R$ ${price}\nRetirada em ${location}`
-      };
+      if (activePreset && activePreset.title === product) {
+        finalDescription = activePreset.description;
+      } else {
+        const response = await chrome.runtime.sendMessage({
+          type: 'GENERATE_AI_COPY',
+          payload: { product, price, location }
+        });
 
-      // 2. Locate Facebook Marketplace elements
+        const copyData = response?.data || {
+          title: product,
+          description: `${product}\nValor: R$ ${price}\nRetirada em ${location}`
+        };
+        finalTitle = copyData.title;
+        finalDescription = copyData.description;
+      }
+
+      if (selectedFiles.length === 0 && activePreset?.folderName) {
+        selectedFiles = await loadPhotosForFolder(activePreset.folderName);
+        renderImagePreviews();
+      }
+
       const hideFriends = document.getElementById('cl-hide-friends-input')?.checked ?? true;
-      const result = fillFacebookMarketplaceFields(copyData.title, price, copyData.description, location, selectedFiles, hideFriends);
+      const result = await fillFacebookMarketplaceFields(
+        finalTitle,
+        price,
+        finalDescription,
+        location,
+        selectedFiles,
+        hideFriends
+      );
 
       if (result.success) {
-        showToast('Anúncio preenchido com sucesso!');
+        showToast('✅ Anúncio, fotos, categoria e amigos preenchidos!');
       } else {
         showToast('Campos do Facebook não encontrados. Verifique se está em "Criar Anúncio".');
       }
     } catch (err) {
       console.error(err);
-      showToast('Erro ao processar dados.');
+      showToast('Erro ao processar dados: ' + err.message);
     } finally {
       fillBtn.disabled = false;
       fillBtn.innerHTML = '<span>⚡ Preencher Anúncio no Facebook</span>';
     }
   }
 
-  function applyHideFromFriends(enable = true) {
-    const keywords = ['ocultar dos amigos', 'ocultar para amigos', 'hide from friends'];
-
-    // 1. Check all elements with role="switch" or checkbox inputs
-    const toggles = Array.from(document.querySelectorAll('input[type="checkbox"], [role="switch"], input[role="switch"]'));
-    for (const t of toggles) {
-      const ariaLabel = (t.getAttribute('aria-label') || '').toLowerCase();
-      const containerText = (t.closest('label')?.innerText || t.closest('div[class]')?.innerText || '').toLowerCase();
-
-      if (keywords.some(kw => ariaLabel.includes(kw) || containerText.includes(kw))) {
-        const isChecked = t.checked === true || t.getAttribute('aria-checked') === 'true';
-        if (enable && !isChecked) {
-          t.click();
-          return true;
-        } else if (!enable && isChecked) {
-          t.click();
-          return true;
-        }
-        return true;
-      }
-    }
-
-    // 2. Scan text nodes across spans and divs to find the switch
-    const allSpans = Array.from(document.querySelectorAll('span, div, label, p'));
-    for (const s of allSpans) {
-      const text = (s.textContent || '').trim().toLowerCase();
-      if (keywords.some(kw => text === kw || text.startsWith(kw))) {
-        const row = s.closest('div[role="button"]') || s.closest('label') || s.closest('div[class]');
-        const toggle = row?.querySelector('input[type="checkbox"], [role="switch"]') || row;
-        if (toggle) {
-          const isChecked = toggle.checked === true || toggle.getAttribute('aria-checked') === 'true';
-          if (enable && !isChecked) {
-            toggle.click();
-            return true;
-          }
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  function fillFacebookMarketplaceFields(title, price, description, location, files, hideFromFriends = true) {
+  async function fillFacebookMarketplaceFields(title, price, description, location, files = [], hideFromFriends = true) {
     let filledCount = 0;
 
     // Helper: Find element by various attributes
@@ -699,7 +985,6 @@
         const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
         const name = (el.getAttribute('name') || '').toLowerCase();
 
-        // Check closest label text
         let labelText = '';
         const parentLabel = el.closest('label');
         if (parentLabel) labelText = parentLabel.innerText.toLowerCase();
@@ -714,21 +999,46 @@
       return null;
     }
 
-    // 1. Título
+    // 1. Injetar Fotos (adiciona os arquivos reais no input file do Facebook)
+    if (files && files.length > 0) {
+      const injected = await injectMarketplacePhotos(files);
+      if (injected) filledCount++;
+      await sleep(600);
+    }
+
+    // 2. Título
     const titleInput = findInputByLabelOrPlaceholder(['Título', 'Title', 'O que você está vendendo']);
     if (titleInput && title) {
       setReactInputValue(titleInput, title);
       filledCount++;
     }
 
-    // 2. Preço
+    // 3. Preço
     const priceInput = findInputByLabelOrPlaceholder(['Preço', 'Price', 'Valor']);
     if (priceInput && price) {
       setReactInputValue(priceInput, price);
       filledCount++;
     }
 
-    // 3. Descrição
+    // 4. Categoria (Seleciona Imóveis / Propriedades)
+    try {
+      const catFilled = await selectMarketplaceCategory();
+      if (catFilled) filledCount++;
+    } catch (e) {
+      console.warn('Erro ao selecionar categoria:', e);
+    }
+    await sleep(400);
+
+    // 5. Condição (Seleciona Novo)
+    try {
+      const condFilled = await selectMarketplaceCondition('Novo');
+      if (condFilled) filledCount++;
+    } catch (e) {
+      console.warn('Erro ao selecionar condição:', e);
+    }
+    await sleep(400);
+
+    // 6. Descrição (Com 50 quebras de linha e "imagens ilustrativas")
     const descEl = document.querySelector('textarea[aria-label*="Descrição"], textarea[placeholder*="Descrição"]') ||
                    document.querySelector('div[role="textbox"][aria-label*="Descrição"]') ||
                    findInputByLabelOrPlaceholder(['Descrição', 'Description']);
@@ -741,7 +1051,7 @@
       filledCount++;
     }
 
-    // 4. Localização (visível apenas na região)
+    // 7. Localização (visível apenas na região)
     if (location) {
       const locInput = findInputByLabelOrPlaceholder(['Localização', 'Location', 'Local', 'Cidade']);
       if (locInput) {
@@ -754,29 +1064,14 @@
       }
     }
 
-    // 5. Ocultar dos amigos (Hide from friends)
+    // 8. Ocultar dos amigos (Hide from friends) - Ativação e persistência multi-pass
     if (hideFromFriends !== false) {
       applyHideFromFriends(true);
-      setTimeout(() => applyHideFromFriends(true), 400);
+      setTimeout(() => applyHideFromFriends(true), 500);
       setTimeout(() => applyHideFromFriends(true), 1200);
+      setTimeout(() => applyHideFromFriends(true), 2200);
+      setTimeout(() => applyHideFromFriends(true), 3500);
       filledCount++;
-    }
-
-    // 6. Injetar Fotos
-    if (files && files.length > 0) {
-      const fileInput = document.querySelector('input[type="file"][accept*="image"]') ||
-                        document.querySelector('input[type="file"]');
-      if (fileInput) {
-        try {
-          const dt = new DataTransfer();
-          files.forEach(f => dt.items.add(f));
-          fileInput.files = dt.files;
-          fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-          filledCount++;
-        } catch (err) {
-          console.error('Erro ao injetar fotos:', err);
-        }
-      }
     }
 
     return { success: filledCount > 0, count: filledCount };
@@ -1386,7 +1681,20 @@
         const isCreatePage = window.location.href.includes('/marketplace/create') ||
                              window.location.href.includes('/marketplace/item');
         if (isCreatePage) {
-          const res = fillFacebookMarketplaceFields(ad.title, ad.price, ad.description, ad.location, [], ad.hideFromFriends !== false);
+          fillNowBtn.disabled = true;
+          fillNowBtn.innerText = 'Preenchendo...';
+          let photos = [];
+          if (ad.folderName) {
+            photos = await loadPhotosForFolder(ad.folderName);
+          }
+          const res = await fillFacebookMarketplaceFields(
+            ad.title,
+            ad.price,
+            ad.description,
+            ad.location,
+            photos,
+            ad.hideFromFriends !== false
+          );
           if (res.success) {
             ad.status = 'completed';
             ad.completedAt = new Date().toISOString();
@@ -1395,10 +1703,12 @@
             if (idx !== -1) current[idx] = ad;
             await chrome.storage.local.set({ scheduledAds: current });
             renderScheduleQueue();
-            showToast('Anúncio preenchido no Facebook!');
+            showToast('✅ Anúncio, fotos, categoria e amigos preenchidos!');
           } else {
             showToast('Campos não encontrados. Certifique-se de estar em Criar Anúncio.');
           }
+          fillNowBtn.disabled = false;
+          fillNowBtn.innerText = '⚡ Preencher Agora';
         } else {
           showToast('Abrindo Facebook Marketplace para preencher...');
           await chrome.runtime.sendMessage({
@@ -1463,14 +1773,19 @@
     let attempts = 0;
     const maxAttempts = 20;
 
-    const tryFill = () => {
+    let photos = [];
+    if (pendingAd.folderName) {
+      photos = await loadPhotosForFolder(pendingAd.folderName);
+    }
+
+    const tryFill = async () => {
       attempts++;
-      const result = fillFacebookMarketplaceFields(
+      const result = await fillFacebookMarketplaceFields(
         pendingAd.title,
         pendingAd.price,
         pendingAd.description,
         pendingAd.location,
-        [],
+        photos,
         pendingAd.hideFromFriends !== false
       );
 
@@ -1480,7 +1795,7 @@
         if (banner && bannerText) {
           banner.style.display = 'block';
           bannerText.innerHTML = `O anúncio <strong>"${escapeHtml(pendingAd.title)}"</strong> (R$ ${escapeHtml(pendingAd.price || 'a combinar')}) foi preenchido com sucesso.<br>` +
-            (pendingAd.folderName ? `📁 Selecione as fotos da pasta <strong>${escapeHtml(pendingAd.folderName)}</strong> para publicar.` : 'Selecione as fotos para publicar.');
+            (photos.length > 0 ? `📸 <strong>${photos.length} fotos</strong> carregadas automaticamente, categoria, condição e opção de ocultar dos amigos ativadas!` : 'Confira os dados para publicar.');
         }
 
         const panel = document.getElementById('conectalead-panel');
@@ -1498,9 +1813,9 @@
 
         chrome.storage.local.set({ pendingAdToFill: null, scheduledAds });
         updateScheduleCount();
-        showToast('⚡ Anúncio agendado preenchido no Facebook!');
+        showToast('⚡ Anúncio, fotos, categoria e amigos preenchidos com sucesso!');
       } else if (attempts < maxAttempts) {
-        setTimeout(tryFill, 800);
+        setTimeout(tryFill, 1000);
       }
     };
 
