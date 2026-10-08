@@ -186,20 +186,75 @@ async function handleScheduleAd(adData) {
   return newAd;
 }
 
-async function handleScheduleBatchAds({ ads, startTime, intervalMinutes = 30 }) {
+function calculateMarketPeakSlots(count, startFromDate = new Date()) {
+  const slots = [];
+  const cursor = new Date(startFromDate.getTime());
+  
+  // Janelas de pico de engajamento imobiliário no Brasil (Palhoça / SC / Brasil):
+  // Dias úteis: Almoço (12:15, 13:10), Volta do trabalho (18:15), Horário Nobre Noturno (19:45, 20:45)
+  // Sábado: Café da manhã / pesquisa familiar (09:30, 11:00), Tarde (15:00, 17:30)
+  // Domingo: Manhã (10:30), Tarde (16:00), Noite de planejamento familiar (19:30, 20:30)
+  const weekdaySlots = [
+    [12, 15],
+    [13, 10],
+    [18, 15],
+    [19, 45],
+    [20, 45]
+  ];
+  const saturdaySlots = [
+    [9, 30],
+    [11, 0],
+    [15, 0],
+    [17, 30]
+  ];
+  const sundaySlots = [
+    [10, 30],
+    [16, 0],
+    [19, 30],
+    [20, 30]
+  ];
+
+  let checkDate = new Date(cursor.getTime());
+  const minValidTime = cursor.getTime() + 5 * 60 * 1000;
+
+  while (slots.length < count) {
+    const dayOfWeek = checkDate.getDay();
+    let daySlotTemplates = weekdaySlots;
+    if (dayOfWeek === 6) daySlotTemplates = saturdaySlots;
+    else if (dayOfWeek === 0) daySlotTemplates = sundaySlots;
+
+    for (const [hour, min] of daySlotTemplates) {
+      const candidate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate(), hour, min, 0, 0);
+      if (candidate.getTime() >= minValidTime) {
+        slots.push(candidate);
+        if (slots.length === count) break;
+      }
+    }
+
+    checkDate.setDate(checkDate.getDate() + 1);
+    checkDate.setHours(0, 0, 0, 0);
+  }
+
+  return slots;
+}
+
+async function handleScheduleBatchAds({ ads, startTime, intervalMinutes = 'market_peak' }) {
   if (!Array.isArray(ads) || ads.length === 0) {
     throw new Error('Nenhum anúncio informado para agendamento em lote.');
   }
 
   const { scheduledAds = [] } = await chrome.storage.local.get('scheduledAds');
   const startMs = startTime ? new Date(startTime).getTime() : (Date.now() + 5 * 60 * 1000);
-  const stepMs = Math.max(1, Number(intervalMinutes)) * 60 * 1000;
+  
+  const isMarketPeak = intervalMinutes === 'market_peak';
+  const peakSlots = isMarketPeak ? calculateMarketPeakSlots(ads.length, new Date(startMs)) : [];
+  const stepMs = isMarketPeak ? 0 : Math.max(1, Number(intervalMinutes) || 30) * 60 * 1000;
 
   const addedAds = [];
 
   for (let i = 0; i < ads.length; i++) {
     const raw = ads[i];
-    const adTimeMs = startMs + (i * stepMs);
+    const adTimeMs = isMarketPeak ? peakSlots[i].getTime() : (startMs + (i * stepMs));
     const id = `sched_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`;
 
     const adObj = {

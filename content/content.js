@@ -149,12 +149,12 @@
               <div class="cl-form-group" style="flex: 1;">
                 <label class="cl-label">Intervalo</label>
                 <select class="cl-select" id="cl-batch-interval" style="font-size: 12px; padding: 8px 10px;">
-                  <option value="15">A cada 15 min</option>
-                  <option value="30" selected>A cada 30 min (Recomendado)</option>
+                  <option value="market_peak" selected>🏆 Horários de Pico (Almoço, Tarde e Noite)</option>
+                  <option value="30">A cada 30 min (Escalonado)</option>
                   <option value="45">A cada 45 min</option>
                   <option value="60">A cada 1 hora</option>
                   <option value="120">A cada 2 horas</option>
-                  <option value="1440">1 por dia</option>
+                  <option value="15">A cada 15 min (Rápido)</option>
                 </select>
               </div>
             </div>
@@ -1129,7 +1129,8 @@
       }
 
       const startTime = batchStartTimeInput.value;
-      const intervalMinutes = Number(batchIntervalSelect.value) || 30;
+      const intervalVal = batchIntervalSelect.value;
+      const intervalMinutes = intervalVal === 'market_peak' ? 'market_peak' : (Number(intervalVal) || 30);
 
       confirmBatchBtn.disabled = true;
       confirmBatchBtn.innerHTML = '<span>Agendando...</span>';
