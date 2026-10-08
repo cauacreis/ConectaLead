@@ -121,29 +121,33 @@
             </div>
           </div>
 
-          <!-- Paused Banner when Phone is Detected -->
-          <div id="cl-chat-paused-banner" style="display: none; background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 12px; color: #92400E; font-size: 12px; line-height: 1.4;">
-            <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 4px; color: #78350F;">
-              <span>🛑 Respostas Automáticas Pausadas</span>
+          <!-- Aviso interno de que o zap já foi pego -->
+          <div id="cl-chat-paused-banner" style="display: none; background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 12px; padding: 12px; color: #065F46; font-size: 12px; line-height: 1.4;">
+            <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 4px; color: #047857;">
+              <span>✅ Contato Salvo!</span>
             </div>
-            <span>O cliente já enviou o WhatsApp. O robô parou de responder nesta conversa para evitar mensagens repetitivas. Chame o cliente diretamente pelo botão acima!</span>
+            <span>O zap do cliente já foi guardado. O bot pausou nesta conversa para você chamar direto no WhatsApp como uma pessoa normal.</span>
           </div>
 
-          <!-- Quick Request WhatsApp Messages -->
+          <!-- Quick Request WhatsApp Messages (Casual e 100% Humano) -->
           <div class="cl-form-group" id="cl-quick-replies-group">
-            <label class="cl-label">Respostas Rápidas (Pedir WhatsApp)</label>
+            <label class="cl-label">Respostas Rápidas (Pede o Zap no natural)</label>
             <div class="cl-replies-list">
               <div class="cl-reply-item" data-template="default">
-                <strong>👉 Padrão (Fotos & Detalhes)</strong>
-                <span>"Olá! Está disponível sim. Me passa seu WhatsApp com DDD para eu te enviar mais detalhes e combinarmos certinho?"</span>
+                <strong>👉 Simples & Direto (Fotos)</strong>
+                <span>"Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina"</span>
               </div>
               <div class="cl-reply-item" data-template="delivery">
-                <strong>👉 Entrega & Retirada</strong>
-                <span>"Oi! Está disponível e testado. Qual seu WhatsApp com DDD para combinarmos a entrega/retirada agora?"</span>
+                <strong>👉 Pra combinar retirada</strong>
+                <span>"Opa, beleza? Tá disponível e funcionando 100%. Me manda seu zap com ddd pra combinarmos de vc ver ou retirar"</span>
               </div>
               <div class="cl-reply-item" data-template="offer">
-                <strong>👉 Proposta & PIX</strong>
-                <span>"Olá! Consigo fechar nesse valor no PIX. Me passa seu WhatsApp com DDD para acertarmos os detalhes?"</span>
+                <strong>👉 Negociação / PIX</strong>
+                <span>"Fechado, no pix dá pra fazer sim! Me passa seu zap com ddd pra gente acertar os detalhes"</span>
+              </div>
+              <div class="cl-reply-item" data-template="confirm">
+                <strong>👉 Confirmar que vai chamar</strong>
+                <span>"Show, já vou te chamar lá no whats!"</span>
               </div>
             </div>
           </div>

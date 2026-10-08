@@ -6,7 +6,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     geminiApiKey: '',
     openaiApiKey: '',
     defaultDdd: '11',
-    whatsappMessageTemplate: 'Olá! Está disponível sim. Qual o seu WhatsApp com DDD para eu te passar fotos em alta resolução e combinarmos por lá?',
+    whatsappMessageTemplate: 'Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina',
     autoDetectPhone: true,
     googleSheetsWebhook: '',
     leads: []
@@ -172,23 +172,26 @@ async function callGemini(apiKey, product, price, location) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const promptText = `
-Você é um especialista em vendas no Facebook Marketplace no Brasil.
-Crie um anúncio de alta conversão para o seguinte item:
-Produto/Item: "${product}"
-Preço sugerido: "R$ ${price}"
-Localização/Bairro: "${location}"
+Você é uma pessoa comum vendendo um item usado/pessoal no Facebook Marketplace no Brasil.
+NÃO use linguagem corporativa nem jargões de agência. NÃO exagere em emojis. NÃO use palavras como "imperdível", "oportunidade única", "garanta já".
+Escreva de forma simples, direta, natural e confiável — exatamente como uma pessoa real anuncia desapegos ou produtos no Marketplace.
 
-Instruções fundamentais:
-1. Crie um título direto, magnético e atraente (máximo 70 caracteres), sem clichês.
-2. Crie uma descrição estruturada, amigável, clara e vendedora com:
-   - Destaque das principais características e estado de conservação
-   - Condições de pagamento aceitas (PIX, Dinheiro, Cartão)
-   - Forma de entrega/retirada segura na região informada (${location})
-   - Chamada final educada convidando a pessoa a chamar para tirar dúvidas ou fechar.
+Item anunciado: "${product}"
+Preço: "R$ ${price}"
+Local de entrega/retirada: "${location}"
+
+Instruções:
+1. Título: direto e limpo, focado em busca (máximo 60 caracteres). Sem emojis no título.
+2. Descrição:
+   - Comece natural (ex: "Vendo ${product}, funcionando perfeitamente e bem cuidado").
+   - Detalhes rápidos e sinceros do estado de conservação.
+   - Valor e pagamento (PIX ou dinheiro em mãos).
+   - Retirada ou entrega na região de ${location}.
+   - Fechamento humano convidando a mandar o zap pra combinar.
 3. Responda ESTRITAMENTE em formato JSON com as chaves:
    {
      "title": "título aqui",
-     "description": "descrição completa aqui com quebras de linha"
+     "description": "descrição aqui com quebras de linha"
    }
 Não inclua crases de markdown além do bloco JSON puro.
 `;
@@ -239,11 +242,11 @@ async function callOpenAI(apiKey, product, price, location) {
       messages: [
         {
           role: 'system',
-          content: 'Você é um redator de anúncios de alta conversão para Facebook Marketplace no Brasil. Responda em JSON com chaves title e description.'
+          content: 'Você é uma pessoa comum vendendo um item no Facebook Marketplace no Brasil. Fale de forma simples, natural, humana e sem jargões ou exageros de marketing. Responda em JSON com chaves title e description.'
         },
         {
           role: 'user',
-          content: `Crie um anúncio magnético para:\nProduto: ${product}\nPreço: R$ ${price}\nLocal: ${location}`
+          content: `Crie um anúncio simples e humano para:\nItem: ${product}\nValor: R$ ${price}\nLocal: ${location}`
         }
       ]
     })
@@ -264,24 +267,22 @@ async function callOpenAI(apiKey, product, price, location) {
 
 function generateLocalCopy(product, price, location) {
   const cleanProduct = (product || '').trim();
-  const title = `${cleanProduct} - Impecável na Região`;
+  const title = `${cleanProduct} - Muito bem cuidado`;
   
   const descLines = [
-    `💎 ${cleanProduct}`,
+    `Vendo ${cleanProduct}, aparelho/item em ótimo estado e funcionando 100%.`,
+    'Fotos reais tiradas do próprio produto.',
     '',
-    '✔️ Produto em excelente estado, testado e pronto para uso.',
-    '✔️ Fotos reais do item.',
+    `Valor: R$ ${price || 'a combinar'}`,
+    'Pagamento no PIX ou dinheiro em mãos.',
     '',
-    `💰 Valor: R$ ${price || 'A combinar'}`,
-    '💳 Aceito PIX e cartão de crédito/débito.',
+    `Pode retirar comigo em ${location || 'local a combinar'} ou combinamos entrega na região.`,
     '',
-    `📍 Retirada ou entrega combinada na região de ${location || 'local a combinar'}.`,
-    '',
-    '👉 Interessados, enviem mensagem com o WhatsApp para combinarmos a entrega ou tirar dúvidas!'
+    'Quem tiver interesse chama no chat ou já manda o zap com ddd pra gente combinar certinho!'
   ];
 
   return {
-    title: title.slice(0, 90),
+    title: title.slice(0, 70),
     description: descLines.join('\n')
   };
 }
