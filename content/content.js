@@ -121,8 +121,16 @@
             </div>
           </div>
 
+          <!-- Paused Banner when Phone is Detected -->
+          <div id="cl-chat-paused-banner" style="display: none; background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 12px; padding: 12px; color: #92400E; font-size: 12px; line-height: 1.4;">
+            <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 4px; color: #78350F;">
+              <span>🛑 Respostas Automáticas Pausadas</span>
+            </div>
+            <span>O cliente já enviou o WhatsApp. O robô parou de responder nesta conversa para evitar mensagens repetitivas. Chame o cliente diretamente pelo botão acima!</span>
+          </div>
+
           <!-- Quick Request WhatsApp Messages -->
-          <div class="cl-form-group">
+          <div class="cl-form-group" id="cl-quick-replies-group">
             <label class="cl-label">Respostas Rápidas (Pedir WhatsApp)</label>
             <div class="cl-replies-list">
               <div class="cl-reply-item" data-template="default">
@@ -141,7 +149,7 @@
           </div>
 
           <!-- Custom Message Box -->
-          <div class="cl-form-group">
+          <div class="cl-form-group" id="cl-custom-chat-group">
             <label class="cl-label">Mensagem para o Chat</label>
             <textarea class="cl-textarea" id="cl-chat-custom-message" rows="3" placeholder="Clique em uma opção acima ou digite aqui..."></textarea>
             <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-send-chat">
@@ -577,15 +585,23 @@
 
     // 3. Search message bubbles in Facebook Messenger
     const messages = document.querySelectorAll('div[dir="auto"], span[dir="auto"]');
+    let phoneFound = false;
+
     for (const msg of messages) {
       const text = msg.innerText || '';
       if (text.length >= 8 && text.length <= 250) {
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
+          phoneFound = true;
           handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
           return;
         }
       }
+    }
+
+    // If no phone found in current conversation, reset to active reply mode
+    if (!phoneFound) {
+      resetChatToActiveMode();
     }
   }
 
@@ -599,13 +615,35 @@
 
     const card = document.getElementById('cl-detected-card');
     const textEl = document.getElementById('cl-detected-phone-text');
+    const pausedBanner = document.getElementById('cl-chat-paused-banner');
+    const repliesGroup = document.getElementById('cl-quick-replies-group');
+    const customGroup = document.getElementById('cl-custom-chat-group');
+
     if (card && textEl) {
       textEl.innerText = phoneData.formatted;
       card.style.display = 'flex';
     }
 
+    // PAUSE BOT: Hide request options and show paused alert
+    if (pausedBanner) pausedBanner.style.display = 'block';
+    if (repliesGroup) repliesGroup.style.display = 'none';
+    if (customGroup) customGroup.style.display = 'none';
+
     // Automatically save to spreadsheet / storage without waiting
     await saveLeadContact(lastDetectedPhone);
+  }
+
+  function resetChatToActiveMode() {
+    lastDetectedPhone = null;
+    const card = document.getElementById('cl-detected-card');
+    const pausedBanner = document.getElementById('cl-chat-paused-banner');
+    const repliesGroup = document.getElementById('cl-quick-replies-group');
+    const customGroup = document.getElementById('cl-custom-chat-group');
+
+    if (card) card.style.display = 'none';
+    if (pausedBanner) pausedBanner.style.display = 'none';
+    if (repliesGroup) repliesGroup.style.display = 'flex';
+    if (customGroup) customGroup.style.display = 'flex';
   }
 
   function setupChatObserver() {
