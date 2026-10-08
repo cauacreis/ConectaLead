@@ -16,7 +16,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     googleSheetsWebhook: '',
     leads: [],
     scheduledAds: [],
-    pendingAdToFill: null
+    pendingAdToFill: null,
+    autoPublishScheduled: true,
+    processedPhones: {},
+    processedChatIds: {}
   };
 
   const current = await chrome.storage.local.get(Object.keys(defaults));
@@ -171,6 +174,7 @@ async function handleScheduleAd(adData) {
     description: adData.description || '',
     folderName: adData.folderName || '',
     hideFromFriends: adData.hideFromFriends !== false,
+    autoPublish: adData.autoPublish !== false,
     scheduledTime: adData.scheduledTime,
     status: 'scheduled',
     createdAt: new Date().toISOString()
@@ -266,6 +270,7 @@ async function handleScheduleBatchAds({ ads, startTime, intervalMinutes = 'marke
       description: raw.description || '',
       folderName: raw.folderName || '',
       hideFromFriends: raw.hideFromFriends !== false,
+      autoPublish: raw.autoPublish !== false,
       scheduledTime: new Date(adTimeMs).toISOString(),
       status: 'scheduled',
       createdAt: new Date().toISOString()
@@ -367,12 +372,22 @@ async function handleSaveLead(leadData) {
     leads.unshift(newLead);
   }
 
-  await chrome.storage.local.set({ leads });
+  const { processedPhones = {} } = await chrome.storage.local.get('processedPhones');
+  processedPhones[cleanPhone] = {
+    phone: cleanPhone,
+    formatted: newLead.formattedPhone,
+    name: newLead.name,
+    product: newLead.product,
+    timestamp: newLead.timestamp
+  };
+
+  await chrome.storage.local.set({ leads, processedPhones });
 
   // Automatic real-time forwarding to Google Sheets
-  if (googleSheetsWebhook && isNew) {
+  const cleanWebhook = (googleSheetsWebhook || '').trim();
+  if (cleanWebhook && isNew) {
     try {
-      await fetch(googleSheetsWebhook, {
+      await fetch(cleanWebhook, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -385,6 +400,7 @@ async function handleSaveLead(leadData) {
           data: new Date(newLead.timestamp).toLocaleString('pt-BR')
         })
       });
+      console.log('[ConectaLead] Lead exportado automaticamente para o Google Sheets:', newLead.formattedPhone);
     } catch (webhookErr) {
       console.warn('Aviso: Não foi possível sincronizar com a planilha do Google:', webhookErr);
     }

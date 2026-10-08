@@ -13,6 +13,9 @@
   let autoPilotTimer = null;
   let activePreset = null;
   let loadedHousePresets = [];
+  let processedPhones = {};
+  let processedChatIds = {};
+  let autoPublishEnabled = true;
 
   // Initialize
   init();
@@ -21,10 +24,19 @@
     // Prevent duplicate injection
     if (document.getElementById('conectalead-launcher')) return;
 
-    // Load settings
-    const settings = await chrome.storage.local.get(['defaultDdd', 'autoPilotEnabled']);
+    // Load settings, persistent phone tracking, and auto-publish preference
+    const settings = await chrome.storage.local.get([
+      'defaultDdd',
+      'autoPilotEnabled',
+      'processedPhones',
+      'processedChatIds',
+      'autoPublishScheduled'
+    ]);
     if (settings.defaultDdd) defaultDdd = settings.defaultDdd;
     autoPilotEnabled = !!settings.autoPilotEnabled;
+    if (settings.processedPhones) processedPhones = settings.processedPhones;
+    if (settings.processedChatIds) processedChatIds = settings.processedChatIds;
+    if (settings.autoPublishScheduled !== undefined) autoPublishEnabled = settings.autoPublishScheduled;
 
     buildUI();
     setupListeners();
@@ -196,6 +208,14 @@
               </label>
             </div>
 
+            <!-- Opção Publicação 100% Automática no Lote -->
+            <div style="margin-top: 2px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #1E293B; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="cl-batch-auto-publish" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
+                <span>🚀 <strong>Publicar 100% automático</strong> (avança e publica sozinho no horário agendado)</span>
+              </label>
+            </div>
+
             <!-- Botão de Confirmar Agendamento em Lote -->
             <button class="cl-btn cl-btn-success" id="cl-btn-confirm-batch" disabled>
               <span>🚀 Agendar Todos na Fila</span>
@@ -235,6 +255,14 @@
               <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #334155; cursor: pointer; user-select: none;">
                 <input type="checkbox" id="cl-single-hide-friends" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
                 <span>🔒 <strong>Ocultar dos amigos</strong> no Facebook</span>
+              </label>
+            </div>
+
+            <!-- Opção Publicação 100% Automática no Individual -->
+            <div style="margin-top: 2px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #1E293B; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="cl-single-auto-publish" checked style="accent-color: #2563EB; cursor: pointer; width: 15px; height: 15px;">
+                <span>🚀 <strong>Publicar 100% automático</strong> (avança e publica sozinho)</span>
               </label>
             </div>
 
@@ -1157,8 +1185,32 @@
     return true;
   }
 
+  function showChatAlreadyProcessed(phoneNumber, name) {
+    const card = document.getElementById('cl-detected-card');
+    const textEl = document.getElementById('cl-detected-phone-text');
+    const pausedBanner = document.getElementById('cl-chat-paused-banner');
+    const repliesGroup = document.getElementById('cl-quick-replies-group');
+    const customGroup = document.getElementById('cl-custom-chat-group');
+
+    if (card && textEl) {
+      textEl.innerText = phoneNumber;
+      card.style.display = 'flex';
+    }
+    if (pausedBanner) {
+      pausedBanner.style.display = 'block';
+      pausedBanner.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 4px; color: #047857;">
+          <span>✅ Número Marcado e Exportado!</span>
+        </div>
+        <span>O WhatsApp <strong>${escapeHtml(phoneNumber)}</strong> deste lead já foi salvo na planilha. Este cliente está marcado e não será verificado novamente.</span>
+      `;
+    }
+    if (repliesGroup) repliesGroup.style.display = 'none';
+    if (customGroup) customGroup.style.display = 'none';
+  }
+
   // Scan current open chat for phone number and message context
-  function scanCurrentChatForPhone() {
+  async function scanCurrentChatForPhone() {
     // 1. Find participant name in chat header
     let detectedName = 'Cliente Marketplace';
     const headerEl = document.querySelector('header h1, header h2, div[role="main"] header span[dir="auto"], div[aria-label*="Bate-papo"] h2');
@@ -1175,6 +1227,18 @@
 
     const chatId = `${detectedName}_${detectedProduct}`;
 
+    // CHECK: Se este chat já foi marcado e exportado, PARA DE VERIFICAR ELE!
+    if (processedChatIds[chatId]) {
+      const savedPhone = processedChatIds[chatId];
+      const formatted = processedPhones[savedPhone]?.formatted || savedPhone;
+      showChatAlreadyProcessed(formatted, detectedName);
+      if (autoPilotTimer) {
+        clearTimeout(autoPilotTimer);
+        autoPilotTimer = null;
+      }
+      return;
+    }
+
     // 3. Search message bubbles in Facebook Messenger
     const messages = document.querySelectorAll('div[dir="auto"], span[dir="auto"]');
     let phoneFound = false;
@@ -1184,12 +1248,40 @@
       if (text.length >= 8 && text.length <= 250) {
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
+          const cleanPhone = detected.phone.replace(/\D/g, '');
+
+          // Se esse número já foi processado antes, apenas associa o chat e encerra
+          if (processedPhones[cleanPhone]) {
+            processedChatIds[chatId] = cleanPhone;
+            await chrome.storage.local.set({ processedChatIds });
+            showChatAlreadyProcessed(detected.formatted, detectedName);
+            if (autoPilotTimer) {
+              clearTimeout(autoPilotTimer);
+              autoPilotTimer = null;
+            }
+            return;
+          }
+
+          // NOVO NÚMERO DETECTADO!
           phoneFound = true;
           if (autoPilotTimer) {
             clearTimeout(autoPilotTimer);
             autoPilotTimer = null;
           }
-          handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
+
+          // Marca o número e o chat permanentemente no storage para parar de verificar
+          processedPhones[cleanPhone] = {
+            phone: cleanPhone,
+            formatted: detected.formatted,
+            name: detectedName,
+            product: detectedProduct,
+            timestamp: new Date().toISOString()
+          };
+          processedChatIds[chatId] = cleanPhone;
+          await chrome.storage.local.set({ processedPhones, processedChatIds });
+
+          // Exporta automaticamente para a planilha Google e salva no armazenamento local
+          await handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
           return;
         }
       }
@@ -1200,11 +1292,10 @@
       resetChatToActiveMode();
 
       // Piloto Automático: Se ativado, responde pedindo o zap com delay humano
-      if (autoPilotEnabled && messages.length > 0 && !autoPilotTimer && !autoRepliedChatIds.has(chatId)) {
+      if (autoPilotEnabled && messages.length > 0 && !autoPilotTimer && !autoRepliedChatIds.has(chatId) && !processedChatIds[chatId]) {
         autoPilotTimer = setTimeout(() => {
           autoPilotTimer = null;
-          // Confirma se o telefone ainda não foi enviado e se ainda não respondemos
-          if (!lastDetectedPhone && !autoRepliedChatIds.has(chatId)) {
+          if (!lastDetectedPhone && !autoRepliedChatIds.has(chatId) && !processedChatIds[chatId]) {
             const defaultMsg = 'Opa, tá disponível sim! Me passa seu zap com ddd que te mando fotos dele e a gente já combina';
             const sent = sendTextMessageToFacebookChat(defaultMsg);
             if (sent) {
@@ -1213,6 +1304,36 @@
             }
           }
         }, 2500); // 2.5 segundos para parecer digitação humana e respeitar anti-bot
+      }
+    }
+  }
+
+  function scanInboxListForPhones() {
+    const listItems = document.querySelectorAll('div[role="navigation"] a[href*="/messages/t/"], div[role="grid"] div[role="row"]');
+    for (const item of listItems) {
+      const text = item.innerText || '';
+      if (text.length >= 8 && text.length <= 300) {
+        const detected = extractBrazilianPhone(text, defaultDdd);
+        if (detected) {
+          const cleanNum = detected.phone.replace(/\D/g, '');
+          if (!processedPhones[cleanNum]) {
+            processedPhones[cleanNum] = {
+              phone: cleanNum,
+              formatted: detected.formatted,
+              name: 'Cliente Marketplace',
+              product: 'Marketplace',
+              timestamp: new Date().toISOString()
+            };
+            chrome.storage.local.set({ processedPhones });
+            saveLeadContact({
+              phone: cleanNum,
+              formatted: detected.formatted,
+              name: 'Cliente Marketplace',
+              product: 'Marketplace',
+              customerMessage: text.slice(0, 100)
+            });
+          }
+        }
       }
     }
   }
@@ -1237,11 +1358,19 @@
     }
 
     // PAUSE BOT: Hide request options and show paused alert
-    if (pausedBanner) pausedBanner.style.display = 'block';
+    if (pausedBanner) {
+      pausedBanner.style.display = 'block';
+      pausedBanner.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 4px; color: #047857;">
+          <span>✅ Número Marcado e Exportado!</span>
+        </div>
+        <span>O WhatsApp <strong>${escapeHtml(phoneData.formatted)}</strong> deste lead já foi salvo na planilha. Este cliente está marcado e não será verificado novamente.</span>
+      `;
+    }
     if (repliesGroup) repliesGroup.style.display = 'none';
     if (customGroup) customGroup.style.display = 'none';
 
-    // Automatically save to spreadsheet / storage without waiting
+    // Automatically export to Google Sheets spreadsheet and storage
     await saveLeadContact(lastDetectedPhone);
   }
 
@@ -1265,6 +1394,7 @@
       clearTimeout(timer);
       timer = setTimeout(() => {
         scanCurrentChatForPhone();
+        scanInboxListForPhones();
       }, 800);
     });
 
@@ -1519,9 +1649,11 @@
       confirmBatchBtn.innerHTML = '<span>Agendando...</span>';
 
       const hideFriends = document.getElementById('cl-batch-hide-friends')?.checked ?? true;
+      const autoPub = document.getElementById('cl-batch-auto-publish')?.checked ?? true;
       const adsToSchedule = preparedBatchAds.map(ad => ({
         ...ad,
-        hideFromFriends: hideFriends
+        hideFromFriends: hideFriends,
+        autoPublish: autoPub
       }));
 
       try {
@@ -1573,6 +1705,7 @@
       saveSingleBtn.innerHTML = '<span>Agendando...</span>';
 
       const hideFriends = document.getElementById('cl-single-hide-friends')?.checked ?? true;
+      const autoPub = document.getElementById('cl-single-auto-publish')?.checked ?? true;
 
       try {
         const resp = await chrome.runtime.sendMessage({
@@ -1583,7 +1716,8 @@
             location,
             description,
             scheduledTime,
-            hideFromFriends: hideFriends
+            hideFromFriends: hideFriends,
+            autoPublish: autoPub
           }
         });
 
@@ -1698,12 +1832,18 @@
           if (res.success) {
             ad.status = 'completed';
             ad.completedAt = new Date().toISOString();
-            const { scheduledAds: current = [] } = await chrome.storage.local.get('scheduledAds');
+            const { scheduledAds: current = [], autoPublishScheduled = true } = await chrome.storage.local.get(['scheduledAds', 'autoPublishScheduled']);
             const idx = current.findIndex(a => a.id === ad.id);
             if (idx !== -1) current[idx] = ad;
             await chrome.storage.local.set({ scheduledAds: current });
             renderScheduleQueue();
-            showToast('✅ Anúncio, fotos, categoria e amigos preenchidos!');
+
+            if (autoPublishScheduled !== false && ad.autoPublish !== false) {
+              await sleep(1500);
+              await autoPublishMarketplaceAd(25);
+            } else {
+              showToast('✅ Anúncio, fotos, categoria e amigos preenchidos!');
+            }
           } else {
             showToast('Campos não encontrados. Certifique-se de estar em Criar Anúncio.');
           }
@@ -1761,14 +1901,90 @@
     if (tabCountEl) tabCountEl.innerText = String(pendingCount);
   }
 
+  async function autoPublishMarketplaceAd(timeoutSec = 25) {
+    console.log('[ConectaLead] Publicação 100% automática em andamento...');
+    showToast('🚀 Finalizando anúncio e publicando automaticamente...');
+
+    const start = Date.now();
+    let advanced = false;
+
+    // Step 1: Wait for "Avançar" button to become enabled and click it
+    while (Date.now() - start < timeoutSec * 1000) {
+      // Re-garante que 'Ocultar dos amigos' está ativo antes de avançar
+      applyHideFromFriends(true);
+
+      const buttons = Array.from(document.querySelectorAll('div[role="button"], button'));
+      for (const btn of buttons) {
+        const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+        
+        if (text === 'avançar' || text === 'avancar' || text === 'next' || ariaLabel === 'avançar' || ariaLabel === 'next') {
+          const isDisabled = btn.getAttribute('aria-disabled') === 'true' || btn.disabled === true;
+          if (!isDisabled) {
+            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+            btn.click();
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            advanced = true;
+            break;
+          }
+        }
+      }
+
+      if (advanced) break;
+      await sleep(1000);
+    }
+
+    if (!advanced) {
+      console.warn('[ConectaLead] Botão Avançar não habilitou a tempo.');
+      return false;
+    }
+
+    await sleep(2000);
+
+    // Step 2: Wait for "Publicar" button on step 2 and click it
+    let published = false;
+    const pubStart = Date.now();
+
+    while (Date.now() - pubStart < 15000) {
+      const buttons = Array.from(document.querySelectorAll('div[role="button"], button'));
+      for (const btn of buttons) {
+        const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+        const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+
+        if (text === 'publicar' || text === 'publish' || ariaLabel === 'publicar' || ariaLabel === 'publish') {
+          const isDisabled = btn.getAttribute('aria-disabled') === 'true' || btn.disabled === true;
+          if (!isDisabled) {
+            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+            btn.click();
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            published = true;
+            break;
+          }
+        }
+      }
+
+      if (published) break;
+      await sleep(1000);
+    }
+
+    if (published) {
+      showToast('🎉 Anúncio publicado com sucesso no Facebook Marketplace!');
+      return true;
+    }
+
+    return false;
+  }
+
   async function checkAndApplyPendingScheduledAd() {
     const isCreatePage = window.location.href.includes('/marketplace/create') ||
                          window.location.href.includes('/marketplace/item');
     if (!isCreatePage) return;
 
-    const data = await chrome.storage.local.get(['pendingAdToFill', 'scheduledAds']);
+    const data = await chrome.storage.local.get(['pendingAdToFill', 'scheduledAds', 'autoPublishScheduled']);
     const pendingAd = data.pendingAdToFill;
     if (!pendingAd) return;
+
+    const shouldAutoPublish = data.autoPublishScheduled !== false && pendingAd.autoPublish !== false;
 
     let attempts = 0;
     const maxAttempts = 20;
@@ -1813,7 +2029,14 @@
 
         chrome.storage.local.set({ pendingAdToFill: null, scheduledAds });
         updateScheduleCount();
-        showToast('⚡ Anúncio, fotos, categoria e amigos preenchidos com sucesso!');
+
+        // Se auto-publish estiver habilitado, finaliza o anúncio sozinho
+        if (shouldAutoPublish) {
+          await sleep(1500);
+          await autoPublishMarketplaceAd(25);
+        } else {
+          showToast('⚡ Anúncio, fotos, categoria e amigos preenchidos com sucesso!');
+        }
       } else if (attempts < maxAttempts) {
         setTimeout(tryFill, 1000);
       }
