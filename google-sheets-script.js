@@ -20,12 +20,16 @@ function doPost(e) {
     var waLink = data.link_whatsapp || (data.whatsapp ? "https://wa.me/55" + data.whatsapp.replace(/\D/g, '') : "");
     var formulaLink = waLink ? '=HYPERLINK("' + waLink + '"; "📲 Chamar no WhatsApp")' : "";
 
+    var adLink = data.link_anuncio || data.ad_link || data.adLink || "";
+    var formulaAdLink = adLink ? '=HYPERLINK("' + adLink + '"; "🔗 Ver Anúncio")' : (data.produto ? "Marketplace" : "");
+
     var novaLinha = [
       data.data || new Date().toLocaleString("pt-BR"),
       data.nome || "Cliente Marketplace",
       data.whatsapp || "",
       data.mensagem || "",
       data.produto || "Produto Marketplace",
+      formulaAdLink,
       formulaLink
     ];
 
@@ -65,14 +69,15 @@ function criarCabecalhoEConfigurarColunas(sheet) {
     "Nome do Cliente",
     "WhatsApp",
     "Mensagem Original",
-    "Produto",
+    "Produto / Casa",
+    "Link do Anúncio",
     "Ação Rápida"
   ]);
 
   sheet.setFrozenRows(1);
   sheet.setRowHeight(1, 42);
 
-  var header = sheet.getRange(1, 1, 1, 6);
+  var header = sheet.getRange(1, 1, 1, 7);
   header.setFontFamily("Segoe UI");
   header.setFontSize(11);
   header.setFontWeight("bold");
@@ -87,13 +92,14 @@ function ajustarLarguras(sheet) {
   sheet.setColumnWidth(1, 160); // Data e Hora
   sheet.setColumnWidth(2, 190); // Nome do Cliente
   sheet.setColumnWidth(3, 150); // WhatsApp
-  sheet.setColumnWidth(4, 320); // Mensagem Original
-  sheet.setColumnWidth(5, 220); // Produto
-  sheet.setColumnWidth(6, 170); // Ação Rápida WhatsApp
+  sheet.setColumnWidth(4, 300); // Mensagem Original
+  sheet.setColumnWidth(5, 220); // Produto / Casa
+  sheet.setColumnWidth(6, 170); // Link do Anúncio
+  sheet.setColumnWidth(7, 170); // Ação Rápida WhatsApp
 }
 
 function formatarLinha(sheet, rowIdx) {
-  var range = sheet.getRange(rowIdx, 1, 1, 6);
+  var range = sheet.getRange(rowIdx, 1, 1, 7);
   sheet.setRowHeight(rowIdx, 36);
 
   range.setFontFamily("Segoe UI");
@@ -125,11 +131,17 @@ function formatarLinha(sheet, rowIdx) {
   msgCell.setWrap(true);
   msgCell.setHorizontalAlignment("left");
 
-  // Produto
+  // Produto / Casa
   sheet.getRange(rowIdx, 5).setHorizontalAlignment("left");
 
+  // Link do Anúncio: Azul, negrito e centralizado
+  var adCell = sheet.getRange(rowIdx, 6);
+  adCell.setHorizontalAlignment("center");
+  adCell.setFontWeight("bold");
+  adCell.setFontColor("#2563EB");
+
   // Botão/Link WhatsApp: Verde, negrito e centralizado
-  var linkCell = sheet.getRange(rowIdx, 6);
+  var linkCell = sheet.getRange(rowIdx, 7);
   linkCell.setHorizontalAlignment("center");
   linkCell.setFontWeight("bold");
   linkCell.setFontColor("#059669");
@@ -148,18 +160,19 @@ function formatarTodaPlanilha() {
   }
 
   // Refaz cabeçalho
-  sheet.getRange(1, 1, 1, 6).setValues([[
+  sheet.getRange(1, 1, 1, 7).setValues([[
     "Data e Hora",
     "Nome do Cliente",
     "WhatsApp",
     "Mensagem Original",
-    "Produto",
+    "Produto / Casa",
+    "Link do Anúncio",
     "Ação Rápida"
   ]]);
 
   sheet.setFrozenRows(1);
   sheet.setRowHeight(1, 42);
-  var header = sheet.getRange(1, 1, 1, 6);
+  var header = sheet.getRange(1, 1, 1, 7);
   header.setFontFamily("Segoe UI");
   header.setFontSize(11);
   header.setFontWeight("bold");
@@ -172,10 +185,15 @@ function formatarTodaPlanilha() {
 
   // Formata todas as linhas de dados
   for (var r = 2; r <= lastRow; r++) {
-    // Corrige link para fórmula bonita se for URL crua
-    var linkVal = sheet.getRange(r, 6).getValue();
+    // Corrige links se forem URLs cruas
+    var adVal = sheet.getRange(r, 6).getValue();
+    if (typeof adVal === 'string' && adVal.indexOf("http") === 0) {
+      sheet.getRange(r, 6).setValue('=HYPERLINK("' + adVal + '"; "🔗 Ver Anúncio")');
+    }
+
+    var linkVal = sheet.getRange(r, 7).getValue();
     if (typeof linkVal === 'string' && linkVal.indexOf("http") === 0) {
-      sheet.getRange(r, 6).setValue('=HYPERLINK("' + linkVal + '"; "📲 Chamar no WhatsApp")');
+      sheet.getRange(r, 7).setValue('=HYPERLINK("' + linkVal + '"; "📲 Chamar no WhatsApp")');
     }
     formatarLinha(sheet, r);
   }

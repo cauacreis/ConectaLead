@@ -44,6 +44,7 @@
     setupChatObserver();
     updateBadgeCount();
     updateScheduleCount();
+    updateAdLinksCount();
     checkAndApplyPendingScheduledAd();
   }
 
@@ -77,6 +78,7 @@
         <button class="cl-tab-btn" data-tab="schedule">📅 Agendar (<span id="cl-tab-schedule-count">0</span>)</button>
         <button class="cl-tab-btn" data-tab="chat">💬 Chat</button>
         <button class="cl-tab-btn" data-tab="leads">👥 Leads (<span id="cl-tab-leads-count">0</span>)</button>
+        <button class="cl-tab-btn" data-tab="adlinks">🔗 Links (<span id="cl-tab-adlinks-count">0</span>)</button>
         <button class="cl-tab-btn" data-tab="sheets">⚙️ Planilha</button>
       </div>
 
@@ -381,7 +383,45 @@
               Nenhum lead capturado ainda.
             </div>
           </div>
-        <!-- TAB 4: PLANILHA & CONFIG -->
+        </div>
+
+        <!-- TAB 5: LINKS DOS ANÚNCIOS -->
+        <div class="cl-tab-content" id="cl-tab-adlinks">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="cl-label" style="margin-bottom: 0;">🔗 Links dos Anúncios</label>
+            <div style="display: flex; gap: 6px;">
+              <button class="cl-btn cl-btn-outline cl-btn-sm" id="cl-btn-sync-page-adlinks" style="padding: 3px 8px; font-size: 11px;" title="Captura links de anúncios visíveis na tela atual">
+                🔄 Sincronizar Tela
+              </button>
+            </div>
+          </div>
+
+          <div style="font-size: 11px; color: #64748B; line-height: 1.4;">
+            Todos os anúncios ativos e links capturados automaticamente em conversas ficam salvos aqui para você copiar e acessar direto.
+          </div>
+
+          <!-- Adicionar Manualmente -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 11px; font-weight: 700; color: #1E293B;">➕ Salvar Link de Anúncio</div>
+            <input type="text" class="cl-input" id="cl-new-adlink-url" placeholder="https://www.facebook.com/marketplace/item/..." style="font-size: 11px; padding: 7px 9px;">
+            <div style="display: flex; gap: 6px;">
+              <input type="text" class="cl-input" id="cl-new-adlink-title" placeholder="Nome/Local da Casa" style="font-size: 11px; padding: 7px 9px; flex: 1.5;">
+              <input type="text" class="cl-input" id="cl-new-adlink-price" placeholder="Preço (Ex: 9000)" style="font-size: 11px; padding: 7px 9px; flex: 1;">
+              <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-save-new-adlink" style="padding: 7px 12px; font-size: 11px; white-space: nowrap;">
+                Salvar
+              </button>
+            </div>
+          </div>
+
+          <!-- Lista de Links -->
+          <div class="cl-adlinks-list" id="cl-adlinks-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;">
+            <div style="text-align: center; color: #94A3B8; font-size: 12px; padding: 24px;">
+              Nenhum anúncio salvo ainda.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 6: PLANILHA & CONFIG -->
         <div class="cl-tab-content" id="cl-tab-sheets">
           <div class="cl-form-group">
             <label class="cl-label">Webhook do Google Sheets</label>
@@ -449,6 +489,7 @@
       if (isPanelOpen) {
         if (activeTab === 'leads') renderLeadsList();
         if (activeTab === 'schedule') renderScheduleQueue();
+        if (activeTab === 'adlinks') renderAdLinksList();
         scanCurrentChatForPhone();
       }
     });
@@ -471,6 +512,7 @@
 
         if (activeTab === 'schedule') renderScheduleQueue();
         if (activeTab === 'leads') renderLeadsList();
+        if (activeTab === 'adlinks') renderAdLinksList();
         if (activeTab === 'chat') scanCurrentChatForPhone();
       });
     });
@@ -645,6 +687,39 @@
         testSheetsBtn.disabled = false;
         testSheetsBtn.innerHTML = '<span>🧪 Testar Planilha</span>';
       }
+    });
+
+    // Ad Links tab controls
+    const saveNewAdLinkBtn = document.getElementById('cl-btn-save-new-adlink');
+    const syncPageAdLinksBtn = document.getElementById('cl-btn-sync-page-adlinks');
+    const newAdUrlInput = document.getElementById('cl-new-adlink-url');
+    const newAdTitleInput = document.getElementById('cl-new-adlink-title');
+    const newAdPriceInput = document.getElementById('cl-new-adlink-price');
+
+    saveNewAdLinkBtn?.addEventListener('click', async () => {
+      const url = newAdUrlInput?.value.trim();
+      if (!url) {
+        showToast('Cole o link do anúncio no campo correspondente.');
+        return;
+      }
+      const title = newAdTitleInput?.value.trim() || 'Anúncio Marketplace';
+      const price = newAdPriceInput?.value.trim() || '';
+
+      await chrome.runtime.sendMessage({
+        type: 'SAVE_AD_LINK',
+        payload: { url, title, price }
+      });
+
+      if (newAdUrlInput) newAdUrlInput.value = '';
+      if (newAdTitleInput) newAdTitleInput.value = '';
+      if (newAdPriceInput) newAdPriceInput.value = '';
+
+      showToast('Link do anúncio salvo!');
+      await renderAdLinksList();
+    });
+
+    syncPageAdLinksBtn?.addEventListener('click', async () => {
+      await syncPageAdLinks();
     });
   }
 
@@ -1225,6 +1300,34 @@
       detectedProduct = bannerEl.innerText.trim();
     }
 
+    // 2.1 Find ad link in conversation banner if available
+    let detectedAdLink = '';
+    const adAnchor = document.querySelector('a[href*="/marketplace/item/"]');
+    if (adAnchor) {
+      let rawHref = adAnchor.getAttribute('href') || adAnchor.href || '';
+      if (rawHref) {
+        if (!rawHref.startsWith('http')) {
+          rawHref = 'https://www.facebook.com' + rawHref;
+        }
+        try {
+          const u = new URL(rawHref);
+          detectedAdLink = `${u.origin}${u.pathname}`;
+        } catch {
+          detectedAdLink = rawHref.split('?')[0];
+        }
+      }
+    }
+
+    if (detectedAdLink) {
+      chrome.runtime.sendMessage({
+        type: 'SAVE_AD_LINK',
+        payload: {
+          url: detectedAdLink,
+          title: detectedProduct
+        }
+      }).catch(() => {});
+    }
+
     const chatId = `${detectedName}_${detectedProduct}`;
 
     // CHECK: Se este chat já foi marcado e exportado, PARA DE VERIFICAR ELE!
@@ -1275,13 +1378,14 @@
             formatted: detected.formatted,
             name: detectedName,
             product: detectedProduct,
+            adLink: detectedAdLink,
             timestamp: new Date().toISOString()
           };
           processedChatIds[chatId] = cleanPhone;
           await chrome.storage.local.set({ processedPhones, processedChatIds });
 
           // Exporta automaticamente para a planilha Google e salva no armazenamento local
-          await handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct);
+          await handlePhoneDetected(detected, text.trim(), detectedName, detectedProduct, detectedAdLink);
           return;
         }
       }
@@ -1338,12 +1442,13 @@
     }
   }
 
-  async function handlePhoneDetected(phoneData, fullMessage = '', clientName = 'Cliente Marketplace', product = 'Produto Marketplace') {
+  async function handlePhoneDetected(phoneData, fullMessage = '', clientName = 'Cliente Marketplace', product = 'Produto Marketplace', adLink = '') {
     lastDetectedPhone = {
       ...phoneData,
       customerMessage: fullMessage,
       name: clientName,
-      product: product
+      product: product,
+      adLink: adLink || phoneData.adLink || ''
     };
 
     const card = document.getElementById('cl-detected-card');
@@ -1458,13 +1563,15 @@
       formattedPhone: phoneData.formatted,
       name: phoneData.name || 'Cliente Marketplace',
       customerMessage: phoneData.customerMessage || '',
-      product: phoneData.product || 'Produto Marketplace'
+      product: phoneData.product || 'Produto Marketplace',
+      adLink: phoneData.adLink || ''
     };
     const response = await chrome.runtime.sendMessage({ type: 'AUTO_SAVE_LEAD', payload: lead });
     if (response?.isNew) {
       showToast('🎯 Telefone detectado e salvo na planilha!');
     }
     await updateBadgeCount();
+    await updateAdLinksCount();
   }
 
   async function updateBadgeCount() {
@@ -1506,6 +1613,13 @@
           <div class="cl-lead-name">${escapeHtml(lead.name || 'Cliente')}</div>
           <div class="cl-lead-phone">${escapeHtml(lead.formattedPhone || lead.phone)}</div>
           ${lead.customerMessage ? `<div style="font-size: 11px; color: #475569; font-style: italic; margin-top: 2px;">💬 "${escapeHtml(lead.customerMessage.slice(0, 75))}${lead.customerMessage.length > 75 ? '...' : ''}"</div>` : ''}
+          ${lead.adLink ? `
+            <div style="margin-top: 4px;">
+              <a href="${escapeHtml(lead.adLink)}" target="_blank" style="font-size: 11px; color: #2563EB; font-weight: 600; text-decoration: underline; display: inline-flex; align-items: center; gap: 4px;">
+                🔗 Ver Anúncio da Casa
+              </a>
+            </div>
+          ` : ''}
           <div class="cl-lead-date">${new Date(lead.timestamp).toLocaleDateString('pt-BR')} ${new Date(lead.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
         <button class="cl-btn cl-btn-success cl-btn-sm cl-open-lead-wa" data-phone="${lead.phone}" style="white-space: nowrap;">
@@ -1530,12 +1644,13 @@
 
     // CSV format with UTF-8 BOM so Excel opens with proper accents and formatting
     const BOM = '\uFEFF';
-    let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link WhatsApp;Data e Hora\n';
+    let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link do Anúncio;Link WhatsApp;Data e Hora\n';
     
     leads.forEach(l => {
       const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
       const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
-      csv += `"${l.name}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${l.product}";"${l.waLink}";"${dateFormatted}"\n`;
+      const adUrl = l.adLink || '';
+      csv += `"${l.name}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${l.product}";"${adUrl}";"${l.waLink}";"${dateFormatted}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1546,6 +1661,131 @@
     a.click();
     URL.revokeObjectURL(url);
     showToast('Planilha baixada com sucesso!');
+  }
+
+  // ==========================================
+  // ABA LINKS DOS ANÚNCIOS (GERENCIAMENTO)
+  // ==========================================
+  async function updateAdLinksCount() {
+    const { adLinks = [] } = await chrome.storage.local.get('adLinks');
+    const tabCount = document.getElementById('cl-tab-adlinks-count');
+    if (tabCount) tabCount.innerText = String(adLinks.length);
+  }
+
+  async function renderAdLinksList() {
+    const { adLinks = [] } = await chrome.storage.local.get('adLinks');
+    const container = document.getElementById('cl-adlinks-container');
+    await updateAdLinksCount();
+    if (!container) return;
+
+    if (adLinks.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; color: #94A3B8; font-size: 12px; padding: 24px;">
+          Nenhum link de anúncio salvo ainda.<br>
+          <span style="font-size: 11px; color: #64748B; margin-top: 4px; display: inline-block;">
+            Adicione acima ou clique em "Sincronizar Tela" enquanto navega no Marketplace.
+          </span>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    adLinks.forEach((ad) => {
+      const card = document.createElement('div');
+      card.className = 'cl-adlink-card';
+
+      const priceBadge = ad.price ? `<span class="cl-adlink-badge cl-adlink-badge-price">R$ ${escapeHtml(ad.price)}</span>` : '';
+      const locBadge = ad.location ? `<span class="cl-adlink-badge cl-adlink-badge-loc">📍 ${escapeHtml(ad.location)}</span>` : '';
+
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div class="cl-adlink-title">${escapeHtml(ad.title || 'Anúncio Marketplace')}</div>
+          <button class="cl-btn-delete-adlink" data-id="${escapeHtml(ad.id)}" title="Remover" style="background: transparent; border: none; font-size: 14px; color: #94A3B8; cursor: pointer; padding: 2px 4px; line-height: 1;">&times;</button>
+        </div>
+        ${(priceBadge || locBadge) ? `<div class="cl-adlink-badges">${priceBadge}${locBadge}</div>` : ''}
+        <div class="cl-adlink-url" title="${escapeHtml(ad.url)}">${escapeHtml(ad.url)}</div>
+        <div class="cl-adlink-actions">
+          <button class="cl-btn cl-btn-primary cl-btn-sm cl-copy-adlink-btn" data-url="${escapeHtml(ad.url)}" style="flex: 1; padding: 5px 8px; font-size: 11px;">
+            <span>📋 Copiar Link</span>
+          </button>
+          <button class="cl-btn cl-btn-outline cl-btn-sm cl-open-adlink-btn" data-url="${escapeHtml(ad.url)}" style="padding: 5px 10px; font-size: 11px;">
+            <span>🌐 Abrir</span>
+          </button>
+        </div>
+      `;
+
+      card.querySelector('.cl-copy-adlink-btn').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(ad.url);
+          showToast('📋 Link do anúncio copiado!');
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = ad.url;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          showToast('📋 Link do anúncio copiado!');
+        }
+      });
+
+      card.querySelector('.cl-open-adlink-btn').addEventListener('click', () => {
+        window.open(ad.url, '_blank');
+      });
+
+      card.querySelector('.cl-btn-delete-adlink').addEventListener('click', async () => {
+        await chrome.runtime.sendMessage({ type: 'DELETE_AD_LINK', payload: { id: ad.id } });
+        showToast('Link removido.');
+        renderAdLinksList();
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  async function syncPageAdLinks() {
+    const anchors = Array.from(document.querySelectorAll('a[href*="/marketplace/item/"]'));
+    if (anchors.length === 0) {
+      showToast('Nenhum anúncio encontrado nesta tela.');
+      return;
+    }
+
+    let savedCount = 0;
+    const seen = new Set();
+
+    for (const a of anchors) {
+      let rawHref = a.getAttribute('href') || a.href || '';
+      if (!rawHref) continue;
+      if (!rawHref.startsWith('http')) {
+        rawHref = 'https://www.facebook.com' + rawHref;
+      }
+
+      let cleanUrl = rawHref;
+      try {
+        const u = new URL(rawHref);
+        cleanUrl = `${u.origin}${u.pathname}`;
+      } catch {
+        cleanUrl = rawHref.split('?')[0];
+      }
+
+      if (seen.has(cleanUrl)) continue;
+      seen.add(cleanUrl);
+
+      const title = (a.innerText || a.textContent || '').trim().split('\n')[0] || 'Anúncio Marketplace';
+
+      await chrome.runtime.sendMessage({
+        type: 'SAVE_AD_LINK',
+        payload: {
+          url: cleanUrl,
+          title: title.slice(0, 80)
+        }
+      });
+      savedCount++;
+    }
+
+    await renderAdLinksList();
+    showToast(`✅ ${savedCount} anúncio(s) sincronizado(s)!`);
   }
 
   // ==========================================
@@ -2033,7 +2273,25 @@
         // Se auto-publish estiver habilitado, finaliza o anúncio sozinho
         if (shouldAutoPublish) {
           await sleep(1500);
-          await autoPublishMarketplaceAd(25);
+          const wasPublished = await autoPublishMarketplaceAd(25);
+          if (wasPublished) {
+            setTimeout(async () => {
+              const match = window.location.href.match(/\/marketplace\/item\/(\d+)/);
+              if (match) {
+                const itemUrl = `https://www.facebook.com/marketplace/item/${match[1]}/`;
+                await chrome.runtime.sendMessage({
+                  type: 'SAVE_AD_LINK',
+                  payload: {
+                    url: itemUrl,
+                    title: pendingAd.title || 'Casa Publicada',
+                    price: pendingAd.price || '',
+                    location: pendingAd.location || ''
+                  }
+                });
+                updateAdLinksCount();
+              }
+            }, 3000);
+          }
         } else {
           showToast('⚡ Anúncio, fotos, categoria e amigos preenchidos com sucesso!');
         }

@@ -15,6 +15,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     autoDetectPhone: true,
     googleSheetsWebhook: '',
     leads: [],
+    adLinks: [],
     scheduledAds: [],
     pendingAdToFill: null,
     autoPublishScheduled: true,
@@ -116,6 +117,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'CLEAR_COMPLETED_SCHEDULED') {
     handleClearCompletedScheduled()
       .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'GET_AD_LINKS') {
+    chrome.storage.local.get('adLinks')
+      .then(data => sendResponse({ success: true, adLinks: data.adLinks || [] }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'SAVE_AD_LINK') {
+    handleSaveAdLink(message.payload)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'DELETE_AD_LINK') {
+    handleDeleteAdLink(message.payload?.id)
+      .then(result => sendResponse({ success: true }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
   }
@@ -339,12 +361,48 @@ async function handleTestSheetsWebhook(webhookUrl) {
   return { success: true };
 }
 
+async function handleSaveAdLink(adLinkData) {
+  if (!adLinkData || !adLinkData.url) throw new Error('URL do anúncio obrigatória');
+  const { adLinks = [] } = await chrome.storage.local.get('adLinks');
+  
+  const cleanUrl = adLinkData.url.trim();
+  const existingIdx = adLinks.findIndex(a => a.url === cleanUrl);
+
+  const adObj = {
+    id: adLinkData.id || `adlink_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    title: adLinkData.title || 'Anúncio Marketplace',
+    price: adLinkData.price || '',
+    location: adLinkData.location || '',
+    url: cleanUrl,
+    folderName: adLinkData.folderName || '',
+    createdAt: adLinkData.createdAt || new Date().toISOString()
+  };
+
+  if (existingIdx >= 0) {
+    adLinks[existingIdx] = { ...adLinks[existingIdx], ...adObj };
+  } else {
+    adLinks.unshift(adObj);
+  }
+
+  await chrome.storage.local.set({ adLinks });
+  return adObj;
+}
+
+async function handleDeleteAdLink(idOrUrl) {
+  if (!idOrUrl) return false;
+  const { adLinks = [] } = await chrome.storage.local.get('adLinks');
+  const updated = adLinks.filter(a => a.id !== idOrUrl && a.url !== idOrUrl);
+  await chrome.storage.local.set({ adLinks: updated });
+  return true;
+}
+
 async function handleSaveLead(leadData) {
   const { leads = [], googleSheetsWebhook = '' } = await chrome.storage.local.get(['leads', 'googleSheetsWebhook']);
   
   const cleanPhone = (leadData.phone || '').replace(/\D/g, '');
   if (!cleanPhone) throw new Error('Telefone inválido');
 
+  const adLink = leadData.adLink || leadData.sourceUrl || '';
   const existingIndex = leads.findIndex(l => l.phone.replace(/\D/g, '') === cleanPhone);
 
   const newLead = {
@@ -354,6 +412,7 @@ async function handleSaveLead(leadData) {
     formattedPhone: leadData.formattedPhone || leadData.phone,
     customerMessage: leadData.customerMessage || '',
     product: leadData.product || 'Produto Marketplace',
+    adLink: adLink,
     waLink: `https://wa.me/55${cleanPhone}`,
     timestamp: leadData.timestamp || new Date().toISOString(),
     sourceUrl: leadData.sourceUrl || ''
@@ -365,7 +424,8 @@ async function handleSaveLead(leadData) {
     leads[existingIndex] = {
       ...leads[existingIndex],
       customerMessage: newLead.customerMessage || leads[existingIndex].customerMessage,
-      product: newLead.product || leads[existingIndex].product
+      product: newLead.product || leads[existingIndex].product,
+      adLink: newLead.adLink || leads[existingIndex].adLink
     };
   } else {
     isNew = true;
@@ -378,10 +438,20 @@ async function handleSaveLead(leadData) {
     formatted: newLead.formattedPhone,
     name: newLead.name,
     product: newLead.product,
+    adLink: newLead.adLink,
     timestamp: newLead.timestamp
   };
 
   await chrome.storage.local.set({ leads, processedPhones });
+
+  // Auto-record ad link if present
+  if (adLink) {
+    handleSaveAdLink({
+      url: adLink,
+      title: newLead.product,
+      createdAt: newLead.timestamp
+    }).catch(err => console.warn('Erro ao registrar link de anúncio:', err));
+  }
 
   // Automatic real-time forwarding to Google Sheets
   const cleanWebhook = (googleSheetsWebhook || '').trim();
@@ -396,6 +466,7 @@ async function handleSaveLead(leadData) {
           whatsapp: newLead.formattedPhone,
           mensagem: newLead.customerMessage,
           produto: newLead.product,
+          link_anuncio: newLead.adLink || '',
           link_whatsapp: newLead.waLink,
           data: new Date(newLead.timestamp).toLocaleString('pt-BR')
         })
