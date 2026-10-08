@@ -84,6 +84,7 @@ async function handleTestSheetsWebhook(webhookUrl) {
 
   await fetch(webhookUrl, {
     method: 'POST',
+    mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(testPayload)
   });
@@ -131,6 +132,7 @@ async function handleSaveLead(leadData) {
     try {
       await fetch(googleSheetsWebhook, {
         method: 'POST',
+        mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           nome: newLead.name,
