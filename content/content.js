@@ -1078,14 +1078,14 @@
   }
 
   function findMarketplaceLocationInput() {
-    const descArea = findMarketplaceDescriptionField();
     const formRoot = getMarketplaceFormContainer();
 
-    const allInputs = Array.from(formRoot.querySelectorAll('input:not([type="hidden"]):not([type="file"])'))
+    const allInputs = Array.from((formRoot || document).querySelectorAll('input:not([type="hidden"]):not([type="file"])'))
       .filter(inp => {
         const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
         const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
         if (ph.includes('pesquisar no facebook') || aria.includes('pesquisar no facebook')) return false;
+        if (inp.closest('#conectalead-panel')) return false;
         if (inp.closest('[role="banner"], [aria-label*="Facebook" i]:not([aria-label*="Marketplace" i])')) return false;
         return true;
       });
@@ -1099,55 +1099,21 @@
       const parentAria = (inp.closest('label, div[role="combobox"]')?.getAttribute('aria-label') || '').toLowerCase();
 
       if (locKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentLabel.includes(kw) || parentAria.includes(kw))) {
-        if (!aria.includes('preço') && !ph.includes('preço') && !parentLabel.includes('preço')) {
+        if (!aria.includes('preço') && !ph.includes('preço') && !parentLabel.includes('preço') && !aria.includes('quartos') && !aria.includes('banheiros')) {
           return inp;
         }
       }
     }
 
-    // Strategy 2: Positional Anchor between Price and Description (100% reliable on /rental)
-    // On Facebook /rental, the fields are:
-    // [Tipo de Anúncio] -> [Tipo de Imóvel] -> [Quartos] -> [Banheiros] -> [Preço] -> [LOCALIZAÇÃO 📍] -> [Descrição]
-    if (descArea) {
-      const priceInput = allInputs.find(inp => {
-        const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
-        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-        const parentLabel = (inp.closest('label')?.innerText || '').toLowerCase();
-        return aria.includes('preço') || ph.includes('preço') || parentLabel.includes('preço');
-      });
-
-      if (priceInput) {
-        for (const inp of allInputs) {
-          if (inp === priceInput) continue;
-          const afterPrice = priceInput.compareDocumentPosition(inp) & Node.DOCUMENT_POSITION_FOLLOWING;
-          const beforeDesc = inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING;
-          if (afterPrice && beforeDesc) {
-            return inp;
-          }
-        }
-      }
-
-      // If priceInput was not found, the input directly preceding descArea is Location
-      const inputsBeforeDesc = allInputs.filter(inp => {
-        const beforeDesc = inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING;
-        const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
-        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-        return beforeDesc && !aria.includes('quartos') && !aria.includes('banheiros') && !aria.includes('preço') && !ph.includes('preço');
-      });
-
-      if (inputsBeforeDesc.length > 0) {
-        return inputsBeforeDesc[inputsBeforeDesc.length - 1];
-      }
-    }
-
-    // Strategy 3: Check by pin icon (SVG or 📍)
+    // Strategy 2: Check by pin icon (SVG or 📍) or proximity to error message ("endereços sugeridos")
     for (const inp of allInputs) {
       let cur = inp.parentElement;
-      for (let i = 0; i < 4 && cur && cur !== formRoot; i++) {
+      for (let i = 0; i < 4 && cur && cur !== document.body; i++) {
         const hasSvg = !!cur.querySelector('svg');
         const hasPinEmoji = (cur.innerText || '').includes('📍');
+        const hasErrorText = (cur.innerText || '').toLowerCase().includes('endereços sugeridos');
         const svgAria = (cur.querySelector('svg')?.getAttribute('aria-label') || '').toLowerCase();
-        if (hasPinEmoji || svgAria.includes('local') || svgAria.includes('pin') || svgAria.includes('map')) {
+        if (hasPinEmoji || hasErrorText || svgAria.includes('local') || svgAria.includes('pin') || svgAria.includes('map')) {
           const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
           const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
           if (!aria.includes('preço') && !ph.includes('preço') && !aria.includes('quartos') && !aria.includes('banheiros')) {
@@ -1155,6 +1121,16 @@
           }
         }
         cur = cur.parentElement;
+      }
+    }
+
+    // Strategy 3: Combobox / autocomplete
+    for (const inp of allInputs) {
+      const role = inp.getAttribute('role') || inp.parentElement?.getAttribute('role');
+      const ariaHasPopup = inp.getAttribute('aria-haspopup');
+      const autocomplete = inp.getAttribute('autocomplete') || '';
+      if (role === 'combobox' || ariaHasPopup === 'listbox' || autocomplete.includes('address')) {
+        return inp;
       }
     }
 
@@ -1173,15 +1149,11 @@
       return false;
     }
 
-    // Região obrigatória: Palhoça, Pagani e redondezas em Santa Catarina (SC)
-    const isSJ = location.toLowerCase().includes('são josé') || location.toLowerCase().includes('sao jose');
-    const defaultCity = isSJ ? 'São José, SC' : 'Palhoça, SC';
-
-    // Formata busca inicial preservando o bairro ("bairro e tudo mais", ex: Pagani, Palhoça, SC)
-    let primarySearch = location.replace(/\s*-\s*/g, ', ').trim();
-    if (!primarySearch.toUpperCase().includes('SC')) {
-      primarySearch = `${primarySearch}, SC`;
-    }
+    // Identificar a cidade alvo obrigatória (Palhoça ou São José em SC)
+    const locLower = (location || '').toLowerCase();
+    const isSJ = locLower.includes('são josé') || locLower.includes('sao jose');
+    const isFloripa = locLower.includes('florianópolis') || locLower.includes('florianopolis');
+    const targetCity = isSJ ? 'São José' : (isFloripa ? 'Florianópolis' : 'Palhoça');
 
     function isOptionInTargetRegion(text) {
       const t = text.toLowerCase();
@@ -1192,7 +1164,8 @@
                            t.includes('são josé') || t.includes('sao jose') ||
                            t.includes('pagani') || t.includes('pedra branca') ||
                            t.includes('passa vinte') || t.includes('kobrasol') ||
-                           t.includes('barreiros') || t.includes('florianópolis');
+                           t.includes('barreiros') || t.includes('florianópolis') ||
+                           t.includes('florianopolis');
       return isSC && isTargetCity;
     }
 
@@ -1202,19 +1175,33 @@
       locInput.click();
       await sleep(150);
 
-      locInput.select?.();
-      document.execCommand('selectAll', false, null);
-      document.execCommand('delete', false, null);
-      setReactInputValue(locInput, '');
-      await sleep(150);
-
-      document.execCommand('insertText', false, query);
+      // Limpar completamente o valor no React tracker
+      if (locInput._valueTracker) locInput._valueTracker.setValue('__clear__');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(locInput, '');
+      else locInput.value = '';
       locInput.dispatchEvent(new Event('input', { bubbles: true }));
       locInput.dispatchEvent(new Event('change', { bubbles: true }));
-      await sleep(200);
+      await sleep(150);
+
+      // Digitar caractere a caractere para disparar o typeahead GraphQL do Facebook
+      let typed = '';
+      for (const char of query) {
+        typed += char;
+        if (locInput._valueTracker) locInput._valueTracker.setValue(typed.slice(0, -1));
+        if (setter) setter.call(locInput, typed);
+        else locInput.value = typed;
+
+        locInput.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: `Key${char.toUpperCase()}`, bubbles: true }));
+        locInput.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
+        locInput.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
+        locInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: `Key${char.toUpperCase()}`, bubbles: true }));
+        await sleep(50);
+      }
+      locInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    async function trySelectValidOption(timeoutMs = 2500) {
+    async function trySelectValidOption(timeoutMs = 3500) {
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
         const inputRect = locInput.getBoundingClientRect();
@@ -1229,13 +1216,13 @@
               if (el.closest('#conectalead-panel') || el === locInput || el.contains(locInput)) return false;
               const r = el.getBoundingClientRect();
               const isBelow = r.top >= inputRect.bottom - 15 && r.top <= inputRect.bottom + 450;
-              const isNear = Math.abs(r.left - inputRect.left) < 120 && r.width > 120 && r.height > 20;
+              const isNear = Math.abs(r.left - inputRect.left) < 150 && r.width > 100 && r.height > 20;
               const txt = (el.innerText || '').toLowerCase();
-              return isBelow && (isNear || txt.includes('brasil') || txt.includes('sc'));
+              return isBelow && (isNear || txt.includes('brasil') || txt.includes('santa catarina') || txt.includes('sc'));
             });
         }
 
-        // Filtra EXCLUSIVAMENTE para a nossa região em Santa Catarina (SC)!
+        // Filtra EXCLUSIVAMENTE para Santa Catarina (SC)!
         // NUNCA aceita Itaguaru, Ilha Solteira, Goiás ou qualquer outro estado!
         const validOptions = candidates.filter(opt => {
           const txt = (opt.innerText || opt.textContent || '').toLowerCase();
@@ -1262,7 +1249,9 @@
           clickable.dispatchEvent(new MouseEvent('click', evtInit));
           clickable.click();
 
-          // Confirmação dupla via teclado
+          await sleep(300);
+
+          // Confirmação via teclado nativo no combobox
           locInput.focus();
           locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
           locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
@@ -1276,45 +1265,54 @@
 
         await sleep(250);
       }
+
+      // Tentativa de confirmação via teclado no combobox
+      locInput.focus();
+      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+      await sleep(100);
+      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+      await sleep(300);
+
       return false;
     }
 
-    // Tentativa 1: Buscar com bairro e cidade (ex: Pagani, Palhoça, SC)
-    await typeAndTriggerSearch(primarySearch);
-    let confirmed = await trySelectValidOption(2500);
+    // Busca pela cidade garantida (ex: Palhoça) que o Facebook sempre tem indexado em SC
+    await typeAndTriggerSearch(targetCity);
+    let confirmed = await trySelectValidOption(3500);
 
-    // Tentativa 2: Se não encontrou bairro específico em SC, busca a cidade diretamente em SC (Palhoça, SC)
-    // Isso garante 100% que NUNCA será selecionado Itaguaru ou outro estado!
+    // Se necessário, tenta buscar cidade + Santa Catarina
     if (!confirmed) {
-      await typeAndTriggerSearch(defaultCity);
-      confirmed = await trySelectValidOption(3000);
+      await typeAndTriggerSearch(`${targetCity}, Santa Catarina`);
+      confirmed = await trySelectValidOption(3500);
     }
 
-    locInput.blur();
     return confirmed;
   }
 
   function findMarketplaceDescriptionField() {
     const descKeywords = ['descrição do imóvel', 'descrição', 'description', 'detalhes do imóvel', 'serviços públicos existentes'];
 
-    // 1. Textarea seguinte ao campo de Localização no DOM (100% garantido no formulário de imóveis)
-    const locInput = findMarketplaceLocationInput();
+    // 1. Procurar por textarea que tenha aria-label, placeholder ou texto pai correspondente
     const allTextareas = Array.from(document.querySelectorAll('textarea')).filter(ta => !ta.closest('#conectalead-panel'));
-    if (locInput && allTextareas.length > 0) {
-      for (const ta of allTextareas) {
-        if (locInput.compareDocumentPosition(ta) & Node.DOCUMENT_POSITION_FOLLOWING) {
-          return ta;
-        }
+    for (const ta of allTextareas) {
+      const aria = (ta.getAttribute('aria-label') || '').toLowerCase();
+      const ph = (ta.getAttribute('placeholder') || '').toLowerCase();
+      const parent = ta.closest('label, div[class*="x1"], div[role="main"]') || ta.parentElement;
+      const parentText = (parent ? parent.innerText : '').toLowerCase();
+      if (descKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentText.includes(kw))) {
+        return ta;
       }
     }
 
-    // 2. Procurar por rótulo textual "Descrição do imóvel" ou "serviços públicos"
+    // 2. Procurar pelo elemento com texto "Descrição do imóvel" ou "serviços públicos" e achar seu textarea
     const candidates = Array.from(document.querySelectorAll('label, div, span, p'));
     for (const el of candidates) {
       const txt = (el.textContent || '').trim().toLowerCase();
       if (descKeywords.some(kw => txt.includes(kw))) {
         let parent = el;
-        for (let i = 0; i < 4 && parent && parent !== document.body; i++) {
+        for (let i = 0; i < 5 && parent && parent !== document.body; i++) {
           const ta = parent.querySelector('textarea');
           if (ta && !ta.closest('#conectalead-panel')) return ta;
           const ed = parent.querySelector('div[role="textbox"], div[contenteditable="true"]');
@@ -1324,7 +1322,7 @@
       }
     }
 
-    // 3. Qualquer textarea dentro do container do formulário
+    // 3. Em formulários de Marketplace (/rental), quase sempre há exatamente 1 textarea no formulário
     const formRoot = getMarketplaceFormContainer();
     if (formRoot && formRoot !== document.body) {
       const ta = formRoot.querySelector('textarea');
@@ -1334,7 +1332,7 @@
     // 4. Qualquer textarea no documento fora do painel ConectaLead
     if (allTextareas.length > 0) return allTextareas[0];
 
-    // 5. Contenteditable
+    // 5. Div contenteditable para descrição
     const editables = Array.from(document.querySelectorAll('div[role="textbox"], div[contenteditable="true"]'))
       .filter(ed => !ed.closest('#conectalead-panel') && !ed.closest('[role="banner"]'));
     if (editables.length > 0) return editables[0];
