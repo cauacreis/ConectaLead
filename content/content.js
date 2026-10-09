@@ -1152,30 +1152,67 @@
     // Identificar a cidade alvo obrigatória (Palhoça ou São José em SC)
     const locLower = (location || '').toLowerCase();
     const isSJ = locLower.includes('são josé') || locLower.includes('sao jose');
-    const isFloripa = locLower.includes('florianópolis') || locLower.includes('florianopolis');
-    const targetCity = isSJ ? 'São José' : (isFloripa ? 'Florianópolis' : 'Palhoça');
+    const cityName = isSJ ? 'São José' : 'Palhoça';
+    // Pesquisa OBRIGATORIAMENTE com "Santa Catarina" para o Facebook só sugerir Santa Catarina!
+    const fullQuery = `${cityName}, Santa Catarina`;
 
-    function isOptionInTargetRegion(text) {
-      const t = text.toLowerCase();
-      // Deve ser obrigatoriamente em SC / Santa Catarina
-      const isSC = t.includes('sc') || t.includes('santa catarina');
-      // Deve ser na região de Palhoça / Pagani / São José / redondezas
-      const isTargetCity = t.includes('palhoça') || t.includes('palhoca') ||
-                           t.includes('são josé') || t.includes('sao jose') ||
-                           t.includes('pagani') || t.includes('pedra branca') ||
-                           t.includes('passa vinte') || t.includes('kobrasol') ||
-                           t.includes('barreiros') || t.includes('florianópolis') ||
-                           t.includes('florianopolis');
-      return isSC && isTargetCity;
+    function findAndClickSCOption() {
+      // Coleta todos os elementos de texto/botões que surgiram na tela fora do painel ConectaLead
+      const allElements = Array.from(document.querySelectorAll(
+        '[role="option"], [role="listbox"] *, [role="button"], li, div[class*="x1i10hfl"], div[tabindex="0"], span'
+      )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
+
+      // Prioridade 1: Opção oficial da cidade (Palhoça / São José) em Santa Catarina, sem ser rua e sem outros estados
+      for (const el of allElements) {
+        const text = (el.innerText || el.textContent || '').trim();
+        if (!text || text.length > 80 || text.length < 5) continue;
+        const t = text.toLowerCase();
+
+        const hasCity = t.includes(cityName.toLowerCase()) || (cityName === 'Palhoça' && t.includes('palhoca'));
+        const hasSC = t.includes('santa catarina') || t.includes('sc') || t.includes('brasil');
+        const hasSP = t.includes('sp') || t.includes('ilha solteira') || t.includes('são paulo') || t.includes('sao paulo');
+        const hasGO = t.includes('go') || t.includes('itaguaru') || t.includes('goiás') || t.includes('goias');
+        const hasRua = t.startsWith('rua ') || t.includes('rua palhoça') || t.includes('avenida');
+
+        if (hasCity && hasSC && !hasSP && !hasGO && !hasRua) {
+          return el.closest('[role="option"]') ||
+                 el.closest('[role="button"]') ||
+                 el.closest('li') ||
+                 el.closest('div[tabindex="0"]') ||
+                 el;
+        }
+      }
+
+      // Prioridade 2: Qualquer opção com a cidade e SC, mas NUNCA aceita SP ou GO
+      for (const el of allElements) {
+        const text = (el.innerText || el.textContent || '').trim();
+        if (!text || text.length > 80 || text.length < 5) continue;
+        const t = text.toLowerCase();
+
+        const hasCity = t.includes(cityName.toLowerCase()) || (cityName === 'Palhoça' && t.includes('palhoca'));
+        const hasSC = t.includes('santa catarina') || t.includes('sc');
+        const hasSP = t.includes('sp') || t.includes('ilha solteira') || t.includes('são paulo') || t.includes('sao paulo');
+        const hasGO = t.includes('go') || t.includes('itaguaru') || t.includes('goiás') || t.includes('goias');
+
+        if (hasCity && hasSC && !hasSP && !hasGO) {
+          return el.closest('[role="option"]') ||
+                 el.closest('[role="button"]') ||
+                 el.closest('li') ||
+                 el.closest('div[tabindex="0"]') ||
+                 el;
+        }
+      }
+
+      return null;
     }
 
-    async function typeAndTriggerSearch(query) {
+    async function triggerTypeahead(textToType) {
       locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
       locInput.focus();
       locInput.click();
       await sleep(150);
 
-      // Limpar completamente o valor no React tracker
+      // Limpar totalmente o valor no React tracker
       if (locInput._valueTracker) locInput._valueTracker.setValue('__clear__');
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
       if (setter) setter.call(locInput, '');
@@ -1186,7 +1223,7 @@
 
       // Digitar caractere a caractere para disparar o typeahead GraphQL do Facebook
       let typed = '';
-      for (const char of query) {
+      for (const char of textToType) {
         typed += char;
         if (locInput._valueTracker) locInput._valueTracker.setValue(typed.slice(0, -1));
         if (setter) setter.call(locInput, typed);
@@ -1196,99 +1233,69 @@
         locInput.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
         locInput.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
         locInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: `Key${char.toUpperCase()}`, bubbles: true }));
-        await sleep(50);
+        await sleep(40);
       }
       locInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    async function trySelectValidOption(timeoutMs = 3500) {
-      const start = Date.now();
-      while (Date.now() - start < timeoutMs) {
-        const inputRect = locInput.getBoundingClientRect();
-        const rawCandidates = Array.from(document.querySelectorAll(
-          '[role="listbox"] [role="option"], [role="listbox"] li, [role="listbox"] [role="button"], [role="option"], li[role="option"], div[role="dialog"] [role="button"], div[role="dialog"] [tabindex="0"]'
-        )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
+    // 1. Digita primeiro "Palhoça, Santa Catarina" para forçar o Facebook a listar apenas SC!
+    await triggerTypeahead(fullQuery);
 
-        let candidates = rawCandidates;
-        if (candidates.length === 0) {
-          candidates = Array.from(document.querySelectorAll('div[role="button"], div[tabindex="0"], li, div[class*="x1i10hfl"]'))
-            .filter(el => {
-              if (el.closest('#conectalead-panel') || el === locInput || el.contains(locInput)) return false;
-              const r = el.getBoundingClientRect();
-              const isBelow = r.top >= inputRect.bottom - 15 && r.top <= inputRect.bottom + 450;
-              const isNear = Math.abs(r.left - inputRect.left) < 150 && r.width > 100 && r.height > 20;
-              const txt = (el.innerText || '').toLowerCase();
-              return isBelow && (isNear || txt.includes('brasil') || txt.includes('santa catarina') || txt.includes('sc'));
-            });
-        }
+    // 2. Aguarda e clica especificamente na opção de SC
+    let clickable = null;
+    for (let i = 0; i < 12; i++) {
+      await sleep(300);
+      clickable = findAndClickSCOption();
+      if (clickable) break;
+    }
 
-        // Filtra EXCLUSIVAMENTE para Santa Catarina (SC)!
-        // NUNCA aceita Itaguaru, Ilha Solteira, Goiás ou qualquer outro estado!
-        const validOptions = candidates.filter(opt => {
-          const txt = (opt.innerText || opt.textContent || '').toLowerCase();
-          return isOptionInTargetRegion(txt);
-        });
-
-        if (validOptions.length > 0) {
-          const target = validOptions[0];
-          const clickable = target.closest('[role="button"]') ||
-                            target.closest('[role="option"]') ||
-                            target.closest('[tabindex="0"]') ||
-                            target.closest('li') ||
-                            target;
-
-          clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-          const evtInit = { bubbles: true, cancelable: true, view: window };
-          clickable.dispatchEvent(new PointerEvent('pointerover', evtInit));
-          clickable.dispatchEvent(new MouseEvent('mouseover', evtInit));
-          clickable.dispatchEvent(new PointerEvent('pointerdown', evtInit));
-          clickable.dispatchEvent(new MouseEvent('mousedown', evtInit));
-          clickable.focus?.();
-          clickable.dispatchEvent(new PointerEvent('pointerup', evtInit));
-          clickable.dispatchEvent(new MouseEvent('mouseup', evtInit));
-          clickable.dispatchEvent(new MouseEvent('click', evtInit));
-          clickable.click();
-
-          await sleep(300);
-
-          // Confirmação via teclado nativo no combobox
-          locInput.focus();
-          locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-          locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-          await sleep(100);
-          locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-          locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-
-          await sleep(400);
-          return true;
-        }
-
-        await sleep(250);
+    // 3. Se não achou na primeira busca, tenta com a cidade base (ex: "Palhoça")
+    if (!clickable) {
+      await triggerTypeahead(cityName);
+      for (let i = 0; i < 12; i++) {
+        await sleep(300);
+        clickable = findAndClickSCOption();
+        if (clickable) break;
       }
+    }
 
-      // Tentativa de confirmação via teclado no combobox
+    // 4. Se encontrou a opção de SC, clica com sequência completa de ponteiro/mouse
+    if (clickable) {
+      clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      const evtInit = { bubbles: true, cancelable: true, view: window };
+      clickable.dispatchEvent(new PointerEvent('pointerover', evtInit));
+      clickable.dispatchEvent(new MouseEvent('mouseover', evtInit));
+      clickable.dispatchEvent(new PointerEvent('pointerdown', evtInit));
+      clickable.dispatchEvent(new MouseEvent('mousedown', evtInit));
+      clickable.focus?.();
+      clickable.dispatchEvent(new PointerEvent('pointerup', evtInit));
+      clickable.dispatchEvent(new MouseEvent('mouseup', evtInit));
+      clickable.dispatchEvent(new MouseEvent('click', evtInit));
+      clickable.click();
+
+      await sleep(350);
+
+      // Confirmação via Enter para fechar o popover
       locInput.focus();
-      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-      await sleep(100);
       locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
       locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
       await sleep(300);
+    }
 
+    // 5. Bloqueio estrito anti-SP e anti-GO:
+    // Se por qualquer motivo o campo estiver com SP, Ilha Solteira ou GO, LIMPA IMEDIATAMENTE!
+    const currentVal = (locInput.value || '').toLowerCase();
+    if (currentVal.includes('sp') || currentVal.includes('ilha solteira') || currentVal.includes('são paulo') || currentVal.includes('go')) {
+      console.warn('Bloqueado valor incorreto de outro estado:', locInput.value);
+      if (locInput._valueTracker) locInput._valueTracker.setValue('__clear__');
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(locInput, '');
+      else locInput.value = '';
+      locInput.dispatchEvent(new Event('input', { bubbles: true }));
       return false;
     }
 
-    // Busca pela cidade garantida (ex: Palhoça) que o Facebook sempre tem indexado em SC
-    await typeAndTriggerSearch(targetCity);
-    let confirmed = await trySelectValidOption(3500);
-
-    // Se necessário, tenta buscar cidade + Santa Catarina
-    if (!confirmed) {
-      await typeAndTriggerSearch(`${targetCity}, Santa Catarina`);
-      confirmed = await trySelectValidOption(3500);
-    }
-
-    return confirmed;
+    return !!clickable;
   }
 
   function findMarketplaceDescriptionField() {
