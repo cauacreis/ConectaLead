@@ -2,6 +2,8 @@
 (() => {
   'use strict';
 
+  const BLANK_LINES = '\n'.repeat(50);
+
   // State
   let selectedFiles = [];
   let isPanelOpen = false;
@@ -12,7 +14,7 @@
   let autoRepliedChatIds = new Set();
   let autoPilotTimer = null;
   let activePreset = null;
-  let loadedHousePresets = [];
+  let loadedHousePresets = (typeof SP_HOUSES_PRESETS !== 'undefined') ? SP_HOUSES_PRESETS : [];
   let processedPhones = {};
   let processedChatIds = {};
   let autoPublishEnabled = true;
@@ -531,15 +533,25 @@
 
     // Preset Houses Dropdown in Tab 1
     const houseSelect = document.getElementById('cl-preset-house-select');
+    function populateHouseOptions(presets) {
+      if (!houseSelect || !presets || presets.length === 0) return;
+      if (houseSelect.options.length > 1) return;
+      presets.forEach((p, idx) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${idx + 1}. ${p.title} (R$ ${p.price})`;
+        houseSelect.appendChild(opt);
+      });
+    }
+
+    if (loadedHousePresets.length > 0) {
+      populateHouseOptions(loadedHousePresets);
+    }
+
     chrome.runtime.sendMessage({ type: 'GET_SP_HOUSES_PRESETS' }).then(resp => {
-      loadedHousePresets = resp?.presets || [];
-      if (houseSelect && loadedHousePresets.length > 0) {
-        loadedHousePresets.forEach((p, idx) => {
-          const opt = document.createElement('option');
-          opt.value = p.id;
-          opt.textContent = `${idx + 1}. ${p.title} (R$ ${p.price})`;
-          houseSelect.appendChild(opt);
-        });
+      if (resp?.presets && resp.presets.length > 0) {
+        loadedHousePresets = resp.presets;
+        populateHouseOptions(loadedHousePresets);
       }
     });
 
@@ -1156,149 +1168,191 @@
       locInput = findMarketplaceLocationInput();
     }
 
-    if (!locInput || !location) {
+    if (!locInput) {
       console.warn('Campo de localização não encontrado.');
       return false;
     }
 
-    // 1. Manter o Bairro e a Cidade ("bairro e tudo mais", ex: Pagani, Palhoça ou Pedra Branca, Palhoça)
-    // Remove apenas a sigla de estado no final se houver (ex: " - SC"), pois na busca do Facebook
-    // "Pagani, Palhoça" ou "Palhoça, SC" traz os resultados exatos de Santa Catarina
-    let searchAddress = location.replace(/\s*-\s*[A-Za-z]{2}$/i, '').trim();
-    if (!searchAddress) searchAddress = location.trim();
+    // Região obrigatória: Palhoça, Pagani e redondezas em Santa Catarina (SC)
+    const isSJ = location.toLowerCase().includes('são josé') || location.toLowerCase().includes('sao jose');
+    const defaultCity = isSJ ? 'São José, SC' : 'Palhoça, SC';
 
-    // 2. Foco e limpeza completa do campo
-    locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
-    locInput.focus();
-    locInput.click();
-    await sleep(200);
-
-    locInput.select?.();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('delete', false, null);
-    setReactInputValue(locInput, '');
-    await sleep(200);
-
-    // 3. Digitar bairro e cidade simulando eventos reais de teclado do usuário
-    document.execCommand('insertText', false, searchAddress);
-    locInput.dispatchEvent(new Event('input', { bubbles: true }));
-    locInput.dispatchEvent(new Event('change', { bubbles: true }));
-    locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-    locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', bubbles: true }));
-
-    // 4. Aguardar até 4 segundos pelas sugestões do dropdown do Facebook e confirmar a opção
-    let optionConfirmed = false;
-    const startWait = Date.now();
-
-    while (Date.now() - startWait < 4000) {
-      // Coleta opções de múltiplos seletores (ARIA e posicional)
-      const inputRect = locInput.getBoundingClientRect();
-      const rawCandidates = Array.from(document.querySelectorAll(
-        '[role="listbox"] [role="option"], [role="listbox"] li, [role="listbox"] [role="button"], [role="option"], li[role="option"], div[role="dialog"] [role="button"], div[role="dialog"] [tabindex="0"]'
-      )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
-
-      // Se não encontrou por roles, busca elementos de texto abaixo do input
-      let candidates = rawCandidates;
-      if (candidates.length === 0) {
-        candidates = Array.from(document.querySelectorAll('div[role="button"], div[tabindex="0"], li, div[class*="x1i10hfl"]'))
-          .filter(el => {
-            if (el.closest('#conectalead-panel') || el === locInput || el.contains(locInput)) return false;
-            const r = el.getBoundingClientRect();
-            const isBelow = r.top >= inputRect.bottom - 15 && r.top <= inputRect.bottom + 450;
-            const isNear = Math.abs(r.left - inputRect.left) < 120 && r.width > 120 && r.height > 20;
-            const txt = (el.innerText || '').toLowerCase();
-            return (isBelow && isNear) || (isBelow && txt.includes('brasil'));
-          });
-      }
-
-      if (candidates.length > 0) {
-        // Filtra opções: Prioridade absoluta para Santa Catarina (SC) e cidade/bairro da região!
-        // Evita selecionar ruas homônimas em SP, MS, etc.
-        const scOptions = candidates.filter(opt => {
-          const txt = (opt.innerText || opt.textContent || '').toLowerCase();
-          const hasSC = txt.includes('sc') || txt.includes('santa catarina');
-          return hasSC;
-        });
-
-        const targetOption = scOptions.length > 0 ? scOptions[0] : candidates[0];
-        const clickable = targetOption.closest('[role="button"]') ||
-                          targetOption.closest('[role="option"]') ||
-                          targetOption.closest('[tabindex="0"]') ||
-                          targetOption.closest('li') ||
-                          targetOption;
-
-        // Dispara ciclo completo de clique no item
-        clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-        const evtInit = { bubbles: true, cancelable: true, view: window };
-        clickable.dispatchEvent(new PointerEvent('pointerover', evtInit));
-        clickable.dispatchEvent(new MouseEvent('mouseover', evtInit));
-        clickable.dispatchEvent(new PointerEvent('pointerdown', evtInit));
-        clickable.dispatchEvent(new MouseEvent('mousedown', evtInit));
-        clickable.focus?.();
-        clickable.dispatchEvent(new PointerEvent('pointerup', evtInit));
-        clickable.dispatchEvent(new MouseEvent('mouseup', evtInit));
-        clickable.dispatchEvent(new MouseEvent('click', evtInit));
-        clickable.click();
-
-        // Confirmação via teclado nativo do combobox do Facebook (ArrowDown + Enter)
-        locInput.focus();
-        locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-        locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-        await sleep(100);
-        locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-        locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-
-        optionConfirmed = true;
-        await sleep(400);
-        break;
-      }
-
-      await sleep(250);
+    // Formata busca inicial preservando o bairro ("bairro e tudo mais", ex: Pagani, Palhoça, SC)
+    let primarySearch = location.replace(/\s*-\s*/g, ', ').trim();
+    if (!primarySearch.toUpperCase().includes('SC')) {
+      primarySearch = `${primarySearch}, SC`;
     }
 
-    // Se após a espera não fechou ou não encontrou elemento, pressiona Enter de confirmação
-    if (!optionConfirmed) {
-      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
-      await sleep(100);
-      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    function isOptionInTargetRegion(text) {
+      const t = text.toLowerCase();
+      // Deve ser obrigatoriamente em SC / Santa Catarina
+      const isSC = t.includes('sc') || t.includes('santa catarina');
+      // Deve ser na região de Palhoça / Pagani / São José / redondezas
+      const isTargetCity = t.includes('palhoça') || t.includes('palhoca') ||
+                           t.includes('são josé') || t.includes('sao jose') ||
+                           t.includes('pagani') || t.includes('pedra branca') ||
+                           t.includes('passa vinte') || t.includes('kobrasol') ||
+                           t.includes('barreiros') || t.includes('florianópolis');
+      return isSC && isTargetCity;
+    }
+
+    async function typeAndTriggerSearch(query) {
+      locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
+      locInput.focus();
+      locInput.click();
+      await sleep(150);
+
+      locInput.select?.();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      setReactInputValue(locInput, '');
+      await sleep(150);
+
+      document.execCommand('insertText', false, query);
+      locInput.dispatchEvent(new Event('input', { bubbles: true }));
+      locInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(200);
+    }
+
+    async function trySelectValidOption(timeoutMs = 2500) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const inputRect = locInput.getBoundingClientRect();
+        const rawCandidates = Array.from(document.querySelectorAll(
+          '[role="listbox"] [role="option"], [role="listbox"] li, [role="listbox"] [role="button"], [role="option"], li[role="option"], div[role="dialog"] [role="button"], div[role="dialog"] [tabindex="0"]'
+        )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
+
+        let candidates = rawCandidates;
+        if (candidates.length === 0) {
+          candidates = Array.from(document.querySelectorAll('div[role="button"], div[tabindex="0"], li, div[class*="x1i10hfl"]'))
+            .filter(el => {
+              if (el.closest('#conectalead-panel') || el === locInput || el.contains(locInput)) return false;
+              const r = el.getBoundingClientRect();
+              const isBelow = r.top >= inputRect.bottom - 15 && r.top <= inputRect.bottom + 450;
+              const isNear = Math.abs(r.left - inputRect.left) < 120 && r.width > 120 && r.height > 20;
+              const txt = (el.innerText || '').toLowerCase();
+              return isBelow && (isNear || txt.includes('brasil') || txt.includes('sc'));
+            });
+        }
+
+        // Filtra EXCLUSIVAMENTE para a nossa região em Santa Catarina (SC)!
+        // NUNCA aceita Itaguaru, Ilha Solteira, Goiás ou qualquer outro estado!
+        const validOptions = candidates.filter(opt => {
+          const txt = (opt.innerText || opt.textContent || '').toLowerCase();
+          return isOptionInTargetRegion(txt);
+        });
+
+        if (validOptions.length > 0) {
+          const target = validOptions[0];
+          const clickable = target.closest('[role="button"]') ||
+                            target.closest('[role="option"]') ||
+                            target.closest('[tabindex="0"]') ||
+                            target.closest('li') ||
+                            target;
+
+          clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+          const evtInit = { bubbles: true, cancelable: true, view: window };
+          clickable.dispatchEvent(new PointerEvent('pointerover', evtInit));
+          clickable.dispatchEvent(new MouseEvent('mouseover', evtInit));
+          clickable.dispatchEvent(new PointerEvent('pointerdown', evtInit));
+          clickable.dispatchEvent(new MouseEvent('mousedown', evtInit));
+          clickable.focus?.();
+          clickable.dispatchEvent(new PointerEvent('pointerup', evtInit));
+          clickable.dispatchEvent(new MouseEvent('mouseup', evtInit));
+          clickable.dispatchEvent(new MouseEvent('click', evtInit));
+          clickable.click();
+
+          // Confirmação dupla via teclado
+          locInput.focus();
+          locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+          locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+          await sleep(100);
+          locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+          locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+
+          await sleep(400);
+          return true;
+        }
+
+        await sleep(250);
+      }
+      return false;
+    }
+
+    // Tentativa 1: Buscar com bairro e cidade (ex: Pagani, Palhoça, SC)
+    await typeAndTriggerSearch(primarySearch);
+    let confirmed = await trySelectValidOption(2500);
+
+    // Tentativa 2: Se não encontrou bairro específico em SC, busca a cidade diretamente em SC (Palhoça, SC)
+    // Isso garante 100% que NUNCA será selecionado Itaguaru ou outro estado!
+    if (!confirmed) {
+      await typeAndTriggerSearch(defaultCity);
+      confirmed = await trySelectValidOption(3000);
     }
 
     locInput.blur();
-    return true;
+    return confirmed;
   }
 
   function findMarketplaceDescriptionField() {
-    const descKeywords = ['descrição do imóvel', 'descrição', 'description', 'detalhes do imóvel'];
+    const descKeywords = ['descrição do imóvel', 'descrição', 'description', 'detalhes do imóvel', 'serviços públicos existentes'];
 
-    const textareas = Array.from(document.querySelectorAll('textarea'));
-    for (const ta of textareas) {
-      const aria = (ta.getAttribute('aria-label') || '').toLowerCase();
-      const ph = (ta.getAttribute('placeholder') || '').toLowerCase();
-      const parentText = (ta.closest('label, div')?.innerText || '').toLowerCase();
-      if (descKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentText.includes(kw))) {
-        return ta;
+    // 1. Textarea seguinte ao campo de Localização no DOM (100% garantido no formulário de imóveis)
+    const locInput = findMarketplaceLocationInput();
+    const allTextareas = Array.from(document.querySelectorAll('textarea')).filter(ta => !ta.closest('#conectalead-panel'));
+    if (locInput && allTextareas.length > 0) {
+      for (const ta of allTextareas) {
+        if (locInput.compareDocumentPosition(ta) & Node.DOCUMENT_POSITION_FOLLOWING) {
+          return ta;
+        }
       }
     }
 
-    const editables = Array.from(document.querySelectorAll('div[role="textbox"], div[contenteditable="true"]'));
-    for (const ed of editables) {
-      const aria = (ed.getAttribute('aria-label') || '').toLowerCase();
-      const ph = (ed.getAttribute('placeholder') || '').toLowerCase();
-      const parentText = (ed.closest('label, div')?.innerText || '').toLowerCase();
-      if (descKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentText.includes(kw))) {
-        return ed;
+    // 2. Procurar por rótulo textual "Descrição do imóvel" ou "serviços públicos"
+    const candidates = Array.from(document.querySelectorAll('label, div, span, p'));
+    for (const el of candidates) {
+      const txt = (el.textContent || '').trim().toLowerCase();
+      if (descKeywords.some(kw => txt.includes(kw))) {
+        let parent = el;
+        for (let i = 0; i < 4 && parent && parent !== document.body; i++) {
+          const ta = parent.querySelector('textarea');
+          if (ta && !ta.closest('#conectalead-panel')) return ta;
+          const ed = parent.querySelector('div[role="textbox"], div[contenteditable="true"]');
+          if (ed && !ed.closest('#conectalead-panel')) return ed;
+          parent = parent.parentElement;
+        }
       }
     }
 
-    if (textareas.length === 1) return textareas[0];
+    // 3. Qualquer textarea dentro do container do formulário
+    const formRoot = getMarketplaceFormContainer();
+    if (formRoot && formRoot !== document.body) {
+      const ta = formRoot.querySelector('textarea');
+      if (ta && !ta.closest('#conectalead-panel')) return ta;
+    }
+
+    // 4. Qualquer textarea no documento fora do painel ConectaLead
+    if (allTextareas.length > 0) return allTextareas[0];
+
+    // 5. Contenteditable
+    const editables = Array.from(document.querySelectorAll('div[role="textbox"], div[contenteditable="true"]'))
+      .filter(ed => !ed.closest('#conectalead-panel') && !ed.closest('[role="banner"]'));
+    if (editables.length > 0) return editables[0];
+
     return null;
   }
 
   async function fillDescriptionField(description) {
-    const descEl = findMarketplaceDescriptionField();
-    if (!descEl || !description) return false;
+    let descEl = findMarketplaceDescriptionField();
+    for (let retry = 0; retry < 5 && !descEl; retry++) {
+      await sleep(300);
+      descEl = findMarketplaceDescriptionField();
+    }
+
+    if (!descEl || !description) {
+      console.warn('Campo de descrição não encontrado.');
+      return false;
+    }
 
     descEl.scrollIntoView({ behavior: 'instant', block: 'center' });
     if (descEl.tagName.toLowerCase() === 'textarea') {
@@ -1402,33 +1456,48 @@
       let finalTitle = product;
       let finalDescription = '';
 
-      if (activePreset && activePreset.title === product) {
-        finalDescription = activePreset.description;
-      } else {
-        const response = await chrome.runtime.sendMessage({
-          type: 'GENERATE_AI_COPY',
-          payload: { product, price, location }
-        });
+      // 1. Verificar se há preset ativo ou se o produto corresponde a um dos 15 modelos de casas
+      const matchedPreset = activePreset || loadedHousePresets.find(p =>
+        p.title.toLowerCase() === product.toLowerCase() ||
+        p.id === activePreset?.id ||
+        (p.location && product.toLowerCase().includes(p.location.split(',')[0].toLowerCase().trim()))
+      );
 
-        const copyData = response?.data || {
-          title: product,
-          description: `${product}\nValor: R$ ${price}\nRetirada em ${location}`
-        };
-        finalTitle = copyData.title;
-        finalDescription = copyData.description;
+      if (matchedPreset && matchedPreset.description) {
+        finalDescription = matchedPreset.description;
+        if (!finalTitle || finalTitle === product) finalTitle = matchedPreset.title;
+      } else {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: 'GENERATE_AI_COPY',
+            payload: { product, price, location }
+          });
+          if (response?.data?.description) {
+            finalTitle = response.data.title || product;
+            finalDescription = response.data.description;
+          }
+        } catch (_) {}
+
+        // Fallback completo obrigatório para casas: 3 quartos, 2 banheiros, 50 linhas em branco e "imagens ilustrativas"
+        if (!finalDescription || finalDescription.trim().length < 20) {
+          finalDescription = `${product}.\n\n3 quartos \n2 banheiros \nCasa completamente solta no terreno, com ótimo espaço para quem tem pets. \nCasa documentada.\nIPTU ✅ \nDisponível para financiamento e boleto\nEntrada A partir de ${price ? price : '9'}mil e parcelas a negociar. \n\nSUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}\n"imagens ilustrativas"`;
+        }
       }
 
-      if (selectedFiles.length === 0 && activePreset?.folderName) {
-        selectedFiles = await loadPhotosForFolder(activePreset.folderName);
-        renderImagePreviews();
+      if (selectedFiles.length === 0) {
+        const folder = activePreset?.folderName || matchedPreset?.folderName || loadedHousePresets[0]?.folderName;
+        if (folder) {
+          selectedFiles = await loadPhotosForFolder(folder);
+          renderImagePreviews();
+        }
       }
 
       const hideFriends = document.getElementById('cl-hide-friends-input')?.checked ?? true;
       const extraRentalData = {
-        rentalType: activePreset?.rentalType || 'Imóvel residencial para venda',
-        propertyType: activePreset?.propertyType || 'Casa',
-        bedrooms: activePreset?.bedrooms || '3',
-        bathrooms: activePreset?.bathrooms || '2'
+        rentalType: (matchedPreset || activePreset)?.rentalType || 'Imóvel residencial para venda',
+        propertyType: (matchedPreset || activePreset)?.propertyType || 'Casa',
+        bedrooms: (matchedPreset || activePreset)?.bedrooms || '3',
+        bathrooms: (matchedPreset || activePreset)?.bathrooms || '2'
       };
 
       const result = await fillFacebookMarketplaceFields(
@@ -1590,15 +1659,18 @@
     }
 
     // 7. Descrição do imóvel (Com 50 quebras de linha e "imagens ilustrativas")
-    if (description) {
-      try {
-        const descFilled = await fillDescriptionField(description);
-        if (descFilled) filledCount++;
-      } catch (e) {
-        console.warn('Erro ao preencher descrição:', e);
-      }
-      await sleep(400);
+    let descToFill = description;
+    if (!descToFill || descToFill.trim().length === 0) {
+      descToFill = `${title || 'Casa'}.\n\n3 quartos \n2 banheiros \nCasa completamente solta no terreno, com ótimo espaço para quem tem pets. \nCasa documentada.\nIPTU ✅ \nDisponível para financiamento e boleto\nEntrada A partir de ${price || '9'}mil e parcelas a negociar. \n\nSUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}\n"imagens ilustrativas"`;
     }
+
+    try {
+      const descFilled = await fillDescriptionField(descToFill);
+      if (descFilled) filledCount++;
+    } catch (e) {
+      console.warn('Erro ao preencher descrição:', e);
+    }
+    await sleep(400);
 
     // 8. Ocultar dos amigos (Hide from friends)
     if (hideFromFriends !== false) {
@@ -1618,7 +1690,12 @@
   }
 
   function setReactInputValue(input, val) {
+    if (!input) return;
     input.focus();
+    input.click?.();
+    if (input._valueTracker) {
+      input._valueTracker.setValue('');
+    }
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
     if (setter) {
       setter.call(input, val);
@@ -1630,21 +1707,50 @@
   }
 
   function setReactTextareaValue(textarea, val) {
+    if (!textarea) return;
     textarea.focus();
+    textarea.click?.();
+
+    if (textarea._valueTracker) {
+      textarea._valueTracker.setValue('');
+    }
+
+    try {
+      textarea.select?.();
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      document.execCommand('insertText', false, val);
+    } catch (_) {}
+
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
     if (setter) {
       setter.call(textarea, val);
     } else {
       textarea.value = val;
     }
+
+    try {
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: val }));
+    } catch (_) {}
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    textarea.dispatchEvent(new Event('blur', { bubbles: true }));
   }
 
   function setReactContentEditable(el, val) {
+    if (!el) return;
     el.focus();
-    document.execCommand('selectAll', false, null);
-    document.execCommand('insertText', false, val);
+    el.click?.();
+    try {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
+      document.execCommand('insertText', false, val);
+    } catch (_) {
+      el.innerText = val;
+    }
+    try {
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: val }));
+    } catch (_) {}
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }

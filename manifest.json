@@ -37,6 +37,7 @@
         "content/content.css"
       ],
       "js": [
+        "presets.js",
         "content/content.js"
       ],
       "run_at": "document_idle"
