@@ -172,8 +172,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       console.warn('Notificação desktop não suportada:', e);
     }
 
-    // Open Marketplace Create Ad page
-    chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/item' });
+    // Open Marketplace Create Rental / Real Estate page
+    chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/rental' });
   } catch (err) {
     console.error('Erro ao processar disparo de alarme agendado:', err);
   }
@@ -328,7 +328,7 @@ async function handleTriggerAdNow(adId) {
   ad.status = 'ready_to_fill';
   await chrome.storage.local.set({ scheduledAds, pendingAdToFill: ad });
 
-  chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/item' });
+  chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/create/rental' });
   return ad;
 }
 

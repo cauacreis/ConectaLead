@@ -25,7 +25,7 @@ Como a extensão foi gerada diretamente na sua máquina, você pode carregá-la 
 ## 🛠️ Como Usar no Dia a Dia
 
 ### 1. Criando Anúncios no Marketplace
-1. Acesse o Facebook na tela de criação de anúncios: [facebook.com/marketplace/create/item](https://www.facebook.com/marketplace/create/item);
+1. Acesse o Facebook na tela de criação de imóveis: [facebook.com/marketplace/create/rental](https://www.facebook.com/marketplace/create/rental);
 2. Um botão flutuante **`⚡ ConectaLead`** aparecerá no canto inferior direito;
 3. Ao clicar nele, o painel lateral é aberto:
    * **Fotos do Produto:** Clique na caixa de fotos para abrir o **Windows Explorer** e selecione as fotos do item no seu computador;

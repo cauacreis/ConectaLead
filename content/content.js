@@ -138,7 +138,7 @@
           </button>
           
           <div id="cl-marketplace-tip" style="font-size: 11px; color: #64748B; text-align: center;">
-            Abra a tela <a href="https://www.facebook.com/marketplace/create/item" target="_blank" style="color: #2563EB; text-decoration: underline;">Criar Anúncio</a> para preenchimento direto.
+            Abra a tela <a href="https://www.facebook.com/marketplace/create/rental" target="_blank" style="color: #2563EB; text-decoration: underline;">Criar Anúncio de Imóvel</a> para preenchimento direto.
           </div>
         </div>
 
@@ -942,6 +942,51 @@
     return false;
   }
 
+  async function selectRentalDropdownOption(fieldKeywords, optionKeywords) {
+    let trigger = null;
+    const candidates = Array.from(document.querySelectorAll('label, div[role="combobox"], div[aria-haspopup="listbox"], div[role="button"]'));
+    for (const el of candidates) {
+      const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+      const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+      if (fieldKeywords.some(kw => txt.includes(kw) || ariaLabel.includes(kw))) {
+        trigger = el.querySelector('div[role="combobox"], div[aria-haspopup], div[tabindex="0"], div[role="button"]') || el;
+        break;
+      }
+    }
+
+    if (!trigger) {
+      for (const kw of fieldKeywords) {
+        trigger = document.querySelector(`[aria-label*="${kw}" i]`);
+        if (trigger) break;
+      }
+    }
+
+    if (!trigger) return false;
+
+    trigger.scrollIntoView({ behavior: 'instant', block: 'center' });
+    trigger.click();
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await sleep(400);
+
+    const options = Array.from(document.querySelectorAll('div[role="option"], div[role="menuitem"], div[role="button"], span[dir="auto"], li[role="option"]'));
+    for (const kw of optionKeywords) {
+      const lkw = kw.toLowerCase();
+      for (const opt of options) {
+        const text = (opt.innerText || opt.textContent || '').trim().toLowerCase();
+        if (text === lkw || text.startsWith(lkw) || text.includes(lkw)) {
+          const clickable = opt.closest('div[role="option"]') || opt.closest('div[role="button"]') || opt;
+          clickable.scrollIntoView({ behavior: 'instant', block: 'center' });
+          clickable.click();
+          clickable.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          await sleep(300);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   function scrollFormToBottom() {
     const divs = Array.from(document.querySelectorAll('div'));
     for (const d of divs) {
@@ -1079,6 +1124,7 @@
 
   async function fillFacebookMarketplaceFields(title, price, description, location, files = [], hideFromFriends = true) {
     let filledCount = 0;
+    const isRentalPage = window.location.href.includes('/rental');
 
     // Helper: Find element by various attributes
     function findInputByLabelOrPlaceholder(keywords) {
@@ -1109,42 +1155,99 @@
       await sleep(600);
     }
 
-    // 2. Título
+    // 2. Se estiver na tela de Imóveis (/marketplace/create/rental) ou houver campos imobiliários
+    const hasRentalFields = isRentalPage || !!document.querySelector('[aria-label*="venda ou locação" i], [aria-label*="imóvel" i], [aria-label*="quartos" i]');
+    if (hasRentalFields) {
+      // 2.1 Tipo de anúncio (Imóvel para venda ou locação -> Imóvel para venda)
+      try {
+        const adTypeFilled = await selectRentalDropdownOption(
+          ['imóvel para venda ou locação', 'para venda ou para locação', 'tipo de anúncio', 'venda ou locação', 'home for sale or rent'],
+          ['imóvel residencial para venda', 'imóvel para venda', 'para venda', 'venda', 'venda residencial']
+        );
+        if (adTypeFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao selecionar tipo de anúncio:', e);
+      }
+      await sleep(400);
+
+      // 2.2 Tipo de imóvel (Casa)
+      try {
+        const propTypeFilled = await selectRentalDropdownOption(
+          ['tipo de imóvel', 'tipo de propriedade', 'property type'],
+          ['casa', 'house']
+        );
+        if (propTypeFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao selecionar tipo de imóvel:', e);
+      }
+      await sleep(400);
+
+      // 2.3 Número de quartos (3 quartos)
+      const bedInput = findInputByLabelOrPlaceholder(['número de quartos', 'quartos', 'dormitórios', 'bedrooms']);
+      if (bedInput && bedInput.tagName.toLowerCase() === 'input') {
+        setReactInputValue(bedInput, '3');
+        filledCount++;
+      } else {
+        const bedFilled = await selectRentalDropdownOption(
+          ['número de quartos', 'quartos', 'dormitórios', 'bedrooms'],
+          ['3', '3 quartos', 'três']
+        );
+        if (bedFilled) filledCount++;
+      }
+      await sleep(400);
+
+      // 2.4 Número de banheiros (2 banheiros)
+      const bathInput = findInputByLabelOrPlaceholder(['número de banheiros', 'banheiros', 'bathrooms']);
+      if (bathInput && bathInput.tagName.toLowerCase() === 'input') {
+        setReactInputValue(bathInput, '2');
+        filledCount++;
+      } else {
+        const bathFilled = await selectRentalDropdownOption(
+          ['número de banheiros', 'banheiros', 'bathrooms'],
+          ['2', '2 banheiros', 'dois']
+        );
+        if (bathFilled) filledCount++;
+      }
+      await sleep(400);
+    }
+
+    // 3. Título (se houver campo de título na tela)
     const titleInput = findInputByLabelOrPlaceholder(['Título', 'Title', 'O que você está vendendo']);
     if (titleInput && title) {
       setReactInputValue(titleInput, title);
       filledCount++;
     }
 
-    // 3. Preço
-    const priceInput = findInputByLabelOrPlaceholder(['Preço', 'Price', 'Valor']);
+    // 4. Preço / Preço por mês
+    const priceInput = findInputByLabelOrPlaceholder(['Preço', 'Price', 'Valor', 'Preço por mês']);
     if (priceInput && price) {
       setReactInputValue(priceInput, price);
       filledCount++;
     }
 
-    // 4. Categoria (Seleciona Imóveis / Propriedades)
-    try {
-      const catFilled = await selectMarketplaceCategory();
-      if (catFilled) filledCount++;
-    } catch (e) {
-      console.warn('Erro ao selecionar categoria:', e);
-    }
-    await sleep(400);
+    // 5. Categoria e Condição (se estiver no formulário de item padrão)
+    if (!hasRentalFields) {
+      try {
+        const catFilled = await selectMarketplaceCategory();
+        if (catFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao selecionar categoria:', e);
+      }
+      await sleep(400);
 
-    // 5. Condição (Seleciona Novo)
-    try {
-      const condFilled = await selectMarketplaceCondition('Novo');
-      if (condFilled) filledCount++;
-    } catch (e) {
-      console.warn('Erro ao selecionar condição:', e);
+      try {
+        const condFilled = await selectMarketplaceCondition('Novo');
+        if (condFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao selecionar condição:', e);
+      }
+      await sleep(400);
     }
-    await sleep(400);
 
     // 6. Descrição (Com 50 quebras de linha e "imagens ilustrativas")
     const descEl = document.querySelector('textarea[aria-label*="Descrição"], textarea[placeholder*="Descrição"]') ||
                    document.querySelector('div[role="textbox"][aria-label*="Descrição"]') ||
-                   findInputByLabelOrPlaceholder(['Descrição', 'Description']);
+                   findInputByLabelOrPlaceholder(['Descrição', 'Description', 'Descrição do imóvel']);
     if (descEl && description) {
       if (descEl.tagName.toLowerCase() === 'textarea') {
         setReactTextareaValue(descEl, description);
@@ -1154,9 +1257,9 @@
       filledCount++;
     }
 
-    // 7. Localização (visível apenas na região)
+    // 7. Localização / Endereço do imóvel (visível apenas na região)
     if (location) {
-      const locInput = findInputByLabelOrPlaceholder(['Localização', 'Location', 'Local', 'Cidade']);
+      const locInput = findInputByLabelOrPlaceholder(['Endereço do imóvel', 'Localização', 'Location', 'Local', 'Cidade', 'Endereço', 'Address']);
       if (locInput) {
         setReactInputValue(locInput, location);
         filledCount++;
@@ -2053,6 +2156,7 @@
       const fillNowBtn = card.querySelector('.cl-btn-fill-now');
       fillNowBtn.addEventListener('click', async () => {
         const isCreatePage = window.location.href.includes('/marketplace/create') ||
+                             window.location.href.includes('/rental') ||
                              window.location.href.includes('/marketplace/item');
         if (isCreatePage) {
           fillNowBtn.disabled = true;
@@ -2217,6 +2321,7 @@
 
   async function checkAndApplyPendingScheduledAd() {
     const isCreatePage = window.location.href.includes('/marketplace/create') ||
+                         window.location.href.includes('/rental') ||
                          window.location.href.includes('/marketplace/item');
     if (!isCreatePage) return;
 
