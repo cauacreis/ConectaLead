@@ -1161,17 +1161,13 @@
       return false;
     }
 
-    // Extrai o nome da cidade reconhecido pelo Facebook Marketplace (ex: Palhoça ou São José)
-    let searchCity = location;
-    if (location.toLowerCase().includes('palhoça')) {
-      searchCity = 'Palhoça';
-    } else if (location.toLowerCase().includes('são josé') || location.toLowerCase().includes('sao jose')) {
-      searchCity = 'São José';
-    } else {
-      searchCity = location.replace(/\s*-\s*[A-Za-z]{2}$/, '').trim();
-    }
+    // 1. Manter o Bairro e a Cidade ("bairro e tudo mais", ex: Pagani, Palhoça ou Pedra Branca, Palhoça)
+    // Remove apenas a sigla de estado no final se houver (ex: " - SC"), pois na busca do Facebook
+    // "Pagani, Palhoça" ou "Palhoça, SC" traz os resultados exatos de Santa Catarina
+    let searchAddress = location.replace(/\s*-\s*[A-Za-z]{2}$/i, '').trim();
+    if (!searchAddress) searchAddress = location.trim();
 
-    // Focus & Clear
+    // 2. Foco e limpeza completa do campo
     locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
     locInput.focus();
     locInput.click();
@@ -1183,47 +1179,93 @@
     setReactInputValue(locInput, '');
     await sleep(200);
 
-    // Insere o texto da cidade simulando digitação real do usuário para o React/Comet
-    document.execCommand('insertText', false, searchCity);
+    // 3. Digitar bairro e cidade simulando eventos reais de teclado do usuário
+    document.execCommand('insertText', false, searchAddress);
     locInput.dispatchEvent(new Event('input', { bubbles: true }));
     locInput.dispatchEvent(new Event('change', { bubbles: true }));
-    locInput.dispatchEvent(new KeyboardEvent('keydown', { key: searchCity[searchCity.length - 1], bubbles: true }));
-    locInput.dispatchEvent(new KeyboardEvent('keyup', { key: searchCity[searchCity.length - 1], bubbles: true }));
+    locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', bubbles: true }));
 
-    // Aguarda até 3.5 segundos pelas opções de autocomplete do Facebook
-    let optionSelected = false;
+    // 4. Aguardar até 4 segundos pelas sugestões do dropdown do Facebook e confirmar a opção
+    let optionConfirmed = false;
     const startWait = Date.now();
-    while (Date.now() - startWait < 3500) {
-      const options = Array.from(document.querySelectorAll(
-        'div[role="listbox"] div[role="option"], ul[role="listbox"] li, div[role="listbox"] [role="button"], div[role="option"], li[role="option"]'
-      ));
 
-      if (options.length > 0) {
-        const targetLower = searchCity.toLowerCase();
-        const bestOpt = options.find(opt => {
+    while (Date.now() - startWait < 4000) {
+      // Coleta opções de múltiplos seletores (ARIA e posicional)
+      const inputRect = locInput.getBoundingClientRect();
+      const rawCandidates = Array.from(document.querySelectorAll(
+        '[role="listbox"] [role="option"], [role="listbox"] li, [role="listbox"] [role="button"], [role="option"], li[role="option"], div[role="dialog"] [role="button"], div[role="dialog"] [tabindex="0"]'
+      )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
+
+      // Se não encontrou por roles, busca elementos de texto abaixo do input
+      let candidates = rawCandidates;
+      if (candidates.length === 0) {
+        candidates = Array.from(document.querySelectorAll('div[role="button"], div[tabindex="0"], li, div[class*="x1i10hfl"]'))
+          .filter(el => {
+            if (el.closest('#conectalead-panel') || el === locInput || el.contains(locInput)) return false;
+            const r = el.getBoundingClientRect();
+            const isBelow = r.top >= inputRect.bottom - 15 && r.top <= inputRect.bottom + 450;
+            const isNear = Math.abs(r.left - inputRect.left) < 120 && r.width > 120 && r.height > 20;
+            const txt = (el.innerText || '').toLowerCase();
+            return (isBelow && isNear) || (isBelow && txt.includes('brasil'));
+          });
+      }
+
+      if (candidates.length > 0) {
+        // Filtra opções: Prioridade absoluta para Santa Catarina (SC) e cidade/bairro da região!
+        // Evita selecionar ruas homônimas em SP, MS, etc.
+        const scOptions = candidates.filter(opt => {
           const txt = (opt.innerText || opt.textContent || '').toLowerCase();
-          return txt.includes(targetLower) || txt.includes('sc') || txt.includes('santa catarina');
-        }) || options[0];
+          const hasSC = txt.includes('sc') || txt.includes('santa catarina');
+          return hasSC;
+        });
 
-        bestOpt.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-        bestOpt.click();
-        bestOpt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        bestOpt.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-        bestOpt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-        bestOpt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-        bestOpt.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-        optionSelected = true;
-        await sleep(350);
+        const targetOption = scOptions.length > 0 ? scOptions[0] : candidates[0];
+        const clickable = targetOption.closest('[role="button"]') ||
+                          targetOption.closest('[role="option"]') ||
+                          targetOption.closest('[tabindex="0"]') ||
+                          targetOption.closest('li') ||
+                          targetOption;
+
+        // Dispara ciclo completo de clique no item
+        clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+        const evtInit = { bubbles: true, cancelable: true, view: window };
+        clickable.dispatchEvent(new PointerEvent('pointerover', evtInit));
+        clickable.dispatchEvent(new MouseEvent('mouseover', evtInit));
+        clickable.dispatchEvent(new PointerEvent('pointerdown', evtInit));
+        clickable.dispatchEvent(new MouseEvent('mousedown', evtInit));
+        clickable.focus?.();
+        clickable.dispatchEvent(new PointerEvent('pointerup', evtInit));
+        clickable.dispatchEvent(new MouseEvent('mouseup', evtInit));
+        clickable.dispatchEvent(new MouseEvent('click', evtInit));
+        clickable.click();
+
+        // Confirmação via teclado nativo do combobox do Facebook (ArrowDown + Enter)
+        locInput.focus();
+        locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+        locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+        await sleep(100);
+        locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+        locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+
+        optionConfirmed = true;
+        await sleep(400);
         break;
       }
+
       await sleep(250);
     }
 
-    if (!optionSelected) {
-      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+    // Se após a espera não fechou ou não encontrou elemento, pressiona Enter de confirmação
+    if (!optionConfirmed) {
+      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true }));
+      await sleep(100);
+      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     }
 
+    locInput.blur();
     return true;
   }
 
