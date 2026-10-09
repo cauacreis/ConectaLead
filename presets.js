@@ -8,7 +8,7 @@ var SP_HOUSES_PRESETS = typeof SP_HOUSES_PRESETS !== 'undefined' ? SP_HOUSES_PRE
     id: '01_Casa_Palhoca_Pagani_3Q_2B',
     title: 'Casa Disponível em PALHOÇA no Pagani',
     price: '9000',
-    location: 'Pagani, Palhoça - SC',
+    location: 'Avenida Atílio Pedro Pagani, Pagani, Palhoça - SC, Brasil',
     folderName: '01_Casa_Palhoca_Pagani_3Q_2B',
     description: `Casa Disponível em PALHOÇA no Pagani.
 
@@ -27,7 +27,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '02_Casa_Palhoca_Pedra_Branca_3Q_2B',
     title: 'Casa Disponível em PALHOÇA no Pedra Branca',
     price: '12000',
-    location: 'Pedra Branca, Palhoça - SC',
+    location: 'Avenida Pedra Branca, Pedra Branca, Palhoça - SC, 88137-270, Brasil',
     folderName: '02_Casa_Palhoca_Pedra_Branca_3Q_2B',
     description: `Casa Disponível em PALHOÇA no Pedra Branca.
 
@@ -46,7 +46,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '03_Casa_Palhoca_Passa_Vinte_3Q_2B',
     title: 'Casa Disponível em PALHOÇA no Passa Vinte',
     price: '10000',
-    location: 'Passa Vinte, Palhoça - SC',
+    location: 'Passa Vinte, Palhoça - SC, Brasil',
     folderName: '03_Casa_Palhoca_Passa_Vinte_3Q_2B',
     description: `Casa Disponível em PALHOÇA no Passa Vinte.
 
@@ -65,7 +65,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '04_Casa_Palhoca_Ponte_Imaruim_3Q_2B',
     title: 'Casa Disponível em PALHOÇA na Ponte do Imaruim',
     price: '9000',
-    location: 'Ponte do Imaruim, Palhoça - SC',
+    location: 'Avenida Aniceto Zacchi, Ponte do Imaruim, Palhoça - SC, Brasil',
     folderName: '04_Casa_Palhoca_Ponte_Imaruim_3Q_2B',
     description: `Casa Disponível em PALHOÇA na Ponte do Imaruim.
 
@@ -217,7 +217,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '12_Casa_Palhoca_Praia_de_Fora_3Q_2B',
     title: 'Casa Disponível em PALHOÇA na Praia de Fora',
     price: '12000',
-    location: 'Praia de Fora, Palhoça - SC',
+    location: 'Praia de Fora, Palhoça - SC, Brasil',
     folderName: '12_Casa_Palhoca_Praia_de_Fora_3Q_2B',
     description: `Casa Disponível em PALHOÇA na Praia de Fora.
 
@@ -236,7 +236,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '13_Casa_Palhoca_Pagani_2_3Q_2B',
     title: 'Casa Disponível em PALHOÇA no Pagani',
     price: '11000',
-    location: 'Pagani, Palhoça - SC',
+    location: 'Avenida Atílio Pedro Pagani, Pagani, Palhoça - SC, Brasil',
     folderName: '13_Casa_Palhoca_Pagani_2_3Q_2B',
     description: `Casa Disponível em PALHOÇA no Pagani.
 
@@ -255,7 +255,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '14_Casa_Sao_Jose_Barreiros_3Q_2B',
     title: 'Casa Disponível em SAO JOSE no Barreiros',
     price: '10000',
-    location: 'Barreiros, São José - SC',
+    location: 'Avenida Leoberto Leal, Barreiros, São José - SC, Brasil',
     folderName: '14_Casa_Sao_Jose_Barreiros_3Q_2B',
     description: `Casa Disponível em SAO JOSE no Barreiros.
 
@@ -274,7 +274,7 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     id: '15_Casa_Sao_Jose_Forquilhinhas_3Q_2B',
     title: 'Casa Disponível em SAO JOSE no Forquilhinhas',
     price: '12000',
-    location: 'Forquilhinhas, São José - SC',
+    location: 'Forquilhinhas, São José - SC, Brasil',
     folderName: '15_Casa_Sao_Jose_Forquilhinhas_3Q_2B',
     description: `Casa Disponível em SAO JOSE no Forquilhinhas.
 

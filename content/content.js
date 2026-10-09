@@ -1149,52 +1149,87 @@
       return false;
     }
 
-    // Identificar a cidade alvo obrigatória (Palhoça ou São José em SC)
-    const locLower = (location || '').toLowerCase();
+    const locRaw = (location || '').trim();
+    const locLower = locRaw.toLowerCase();
     const isSJ = locLower.includes('são josé') || locLower.includes('sao jose');
     const cityName = isSJ ? 'São José' : 'Palhoça';
-    // Pesquisa OBRIGATORIAMENTE com "Santa Catarina" para o Facebook só sugerir Santa Catarina!
-    const fullQuery = `${cityName}, Santa Catarina`;
+
+    // 1. Identificar bairro ou rua informados
+    const knownNeighborhoods = [
+      'pedra branca', 'praia de fora', 'pagani', 'passa vinte', 'ponte do imaruim',
+      'bela vista', 'aririú', 'aririu', 'nova palhoça', 'nova palhoca', 'madri',
+      'são sebastião', 'sao sebastiao', 'jardim eldorado', 'barra do aririú', 'barra do aririu',
+      'barreiros', 'forquilhinhas', 'kobrasol', 'campinas'
+    ];
+
+    let foundNeighborhood = '';
+    for (const nb of knownNeighborhoods) {
+      if (locLower.includes(nb)) {
+        foundNeighborhood = nb;
+        break;
+      }
+    }
+
+    const streetMatch = locRaw.match(/((?:Avenida|Av\.|Rua|Servidão|Rodovia)\s+[^,]+)/i);
+    const streetName = streetMatch ? streetMatch[1].trim() : '';
+
+    // Termos específicos de preferência para o clique
+    const preferredKeywords = [];
+    if (streetName) preferredKeywords.push(streetName.toLowerCase());
+    if (foundNeighborhood) preferredKeywords.push(foundNeighborhood.toLowerCase());
+
+    // Lista de buscas ordenada da mais específica à mais geral
+    const searchQueries = [];
+    if (streetName) {
+      searchQueries.push(`${streetName}, ${cityName}`);
+    }
+    if (foundNeighborhood) {
+      const capNb = foundNeighborhood.replace(/\b\w/g, l => l.toUpperCase());
+      searchQueries.push(`${capNb}, ${cityName}`);
+    }
+    searchQueries.push(`${cityName}, Santa Catarina`);
+    searchQueries.push(cityName);
 
     function findAndClickSCOption() {
-      // Coleta todos os elementos de texto/botões que surgiram na tela fora do painel ConectaLead
       const allElements = Array.from(document.querySelectorAll(
         '[role="option"], [role="listbox"] *, [role="button"], li, div[class*="x1i10hfl"], div[tabindex="0"], span'
       )).filter(el => !el.closest('#conectalead-panel') && el !== locInput && !el.contains(locInput));
 
-      // Prioridade 1: Opção oficial da cidade (Palhoça / São José) em Santa Catarina, sem ser rua e sem outros estados
+      function isBlockedNonSC(textLower) {
+        return textLower.includes('sp') || textLower.includes('ilha solteira') ||
+               textLower.includes('são paulo') || textLower.includes('sao paulo') ||
+               textLower.includes('go') || textLower.includes('itaguaru') ||
+               textLower.includes('goiás') || textLower.includes('goias') ||
+               textLower.includes('mg') || textLower.includes('pr') || textLower.includes('rs');
+      }
+
+      // Prioridade 1: Opção com o endereço/bairro específico em SC (ex: "Avenida Pedra Branca...", "Praia de Fora...")
+      for (const kw of preferredKeywords) {
+        for (const el of allElements) {
+          const text = (el.innerText || el.textContent || '').trim();
+          if (!text || text.length > 120 || text.length < 5) continue;
+          const t = text.toLowerCase();
+
+          if (t.includes(kw) && (t.includes('sc') || t.includes('santa catarina') || t.includes('brasil')) && !isBlockedNonSC(t)) {
+            return el.closest('[role="option"]') ||
+                   el.closest('[role="button"]') ||
+                   el.closest('li') ||
+                   el.closest('div[tabindex="0"]') ||
+                   el;
+          }
+        }
+      }
+
+      // Prioridade 2: Qualquer opção na cidade alvo (Palhoça ou São José) em SC
       for (const el of allElements) {
         const text = (el.innerText || el.textContent || '').trim();
-        if (!text || text.length > 80 || text.length < 5) continue;
+        if (!text || text.length > 120 || text.length < 5) continue;
         const t = text.toLowerCase();
 
         const hasCity = t.includes(cityName.toLowerCase()) || (cityName === 'Palhoça' && t.includes('palhoca'));
         const hasSC = t.includes('santa catarina') || t.includes('sc') || t.includes('brasil');
-        const hasSP = t.includes('sp') || t.includes('ilha solteira') || t.includes('são paulo') || t.includes('sao paulo');
-        const hasGO = t.includes('go') || t.includes('itaguaru') || t.includes('goiás') || t.includes('goias');
-        const hasRua = t.startsWith('rua ') || t.includes('rua palhoça') || t.includes('avenida');
 
-        if (hasCity && hasSC && !hasSP && !hasGO && !hasRua) {
-          return el.closest('[role="option"]') ||
-                 el.closest('[role="button"]') ||
-                 el.closest('li') ||
-                 el.closest('div[tabindex="0"]') ||
-                 el;
-        }
-      }
-
-      // Prioridade 2: Qualquer opção com a cidade e SC, mas NUNCA aceita SP ou GO
-      for (const el of allElements) {
-        const text = (el.innerText || el.textContent || '').trim();
-        if (!text || text.length > 80 || text.length < 5) continue;
-        const t = text.toLowerCase();
-
-        const hasCity = t.includes(cityName.toLowerCase()) || (cityName === 'Palhoça' && t.includes('palhoca'));
-        const hasSC = t.includes('santa catarina') || t.includes('sc');
-        const hasSP = t.includes('sp') || t.includes('ilha solteira') || t.includes('são paulo') || t.includes('sao paulo');
-        const hasGO = t.includes('go') || t.includes('itaguaru') || t.includes('goiás') || t.includes('goias');
-
-        if (hasCity && hasSC && !hasSP && !hasGO) {
+        if (hasCity && hasSC && !isBlockedNonSC(t)) {
           return el.closest('[role="option"]') ||
                  el.closest('[role="button"]') ||
                  el.closest('li') ||
@@ -1233,33 +1268,22 @@
         locInput.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
         locInput.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: char }));
         locInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, code: `Key${char.toUpperCase()}`, bubbles: true }));
-        await sleep(40);
+        await sleep(35);
       }
       locInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    // 1. Digita primeiro "Palhoça, Santa Catarina" para forçar o Facebook a listar apenas SC!
-    await triggerTypeahead(fullQuery);
-
-    // 2. Aguarda e clica especificamente na opção de SC
     let clickable = null;
-    for (let i = 0; i < 12; i++) {
-      await sleep(300);
-      clickable = findAndClickSCOption();
-      if (clickable) break;
-    }
-
-    // 3. Se não achou na primeira busca, tenta com a cidade base (ex: "Palhoça")
-    if (!clickable) {
-      await triggerTypeahead(cityName);
-      for (let i = 0; i < 12; i++) {
+    for (const query of searchQueries) {
+      await triggerTypeahead(query);
+      for (let i = 0; i < 10; i++) {
         await sleep(300);
         clickable = findAndClickSCOption();
         if (clickable) break;
       }
+      if (clickable) break;
     }
 
-    // 4. Se encontrou a opção de SC, clica com sequência completa de ponteiro/mouse
     if (clickable) {
       clickable.scrollIntoView({ behavior: 'instant', block: 'nearest' });
       const evtInit = { bubbles: true, cancelable: true, view: window };
@@ -1282,7 +1306,7 @@
       await sleep(300);
     }
 
-    // 5. Bloqueio estrito anti-SP e anti-GO:
+    // Bloqueio estrito anti-SP e anti-GO:
     // Se por qualquer motivo o campo estiver com SP, Ilha Solteira ou GO, LIMPA IMEDIATAMENTE!
     const currentVal = (locInput.value || '').toLowerCase();
     if (currentVal.includes('sp') || currentVal.includes('ilha solteira') || currentVal.includes('são paulo') || currentVal.includes('go')) {
