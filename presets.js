@@ -1,7 +1,7 @@
 // ConectaLead - Presets dos 15 Modelos de Casas (Palhoça, Pagani e Região - SC)
 // 3 Quartos, 2 Banheiros, Casas soltas no terreno, Sem Móveis
 
-var BLANK_LINES = typeof BLANK_LINES !== 'undefined' ? BLANK_LINES : '\n'.repeat(50);
+var BLANK_LINES = '\n'.repeat(100);
 
 var SP_HOUSES_PRESETS = typeof SP_HOUSES_PRESETS !== 'undefined' ? SP_HOUSES_PRESETS : [
   {

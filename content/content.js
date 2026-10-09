@@ -2,7 +2,7 @@
 (() => {
   'use strict';
 
-  const BLANK_LINES = '\n'.repeat(50);
+  const BLANK_LINES = '\n'.repeat(100);
 
   // State
   let selectedFiles = [];
