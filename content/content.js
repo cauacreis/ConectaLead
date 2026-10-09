@@ -1050,46 +1050,99 @@
     return await selectRentalDropdownOption(fieldKeywords, optKeywords);
   }
 
-  function findMarketplaceLocationInput() {
-    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="file"])'));
+  function getMarketplaceFormContainer() {
+    const descArea = document.querySelector('textarea, div[role="textbox"][aria-label*="descrição" i]');
+    if (descArea) {
+      let p = descArea.parentElement;
+      while (p && p !== document.body) {
+        if (p.tagName.toLowerCase() === 'form' || p.getAttribute('role') === 'main' || (p.scrollHeight > p.clientHeight + 40 && p.clientHeight > 300)) {
+          return p;
+        }
+        p = p.parentElement;
+      }
+      return descArea.closest('[role="main"]') || document.body;
+    }
+    return document.querySelector('[role="main"]') || document.body;
+  }
 
-    // Priority 1: Label / aria-label / placeholder
+  function findMarketplaceLocationInput() {
+    const descArea = findMarketplaceDescriptionField();
+    const formRoot = getMarketplaceFormContainer();
+
+    const allInputs = Array.from(formRoot.querySelectorAll('input:not([type="hidden"]):not([type="file"])'))
+      .filter(inp => {
+        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+        const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+        if (ph.includes('pesquisar no facebook') || aria.includes('pesquisar no facebook')) return false;
+        if (inp.closest('[role="banner"], [aria-label*="Facebook" i]:not([aria-label*="Marketplace" i])')) return false;
+        return true;
+      });
+
+    // Strategy 1: Check by label / aria-label / placeholder
     const locKeywords = ['endereço do imóvel', 'localização do imóvel', 'endereço', 'localização', 'local', 'cidade', 'location', 'address', 'bairro'];
-    for (const inp of inputs) {
+    for (const inp of allInputs) {
       const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
       const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
       const parentLabel = (inp.closest('label')?.innerText || '').toLowerCase();
-      if (locKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentLabel.includes(kw))) {
-        return inp;
-      }
-    }
+      const parentAria = (inp.closest('label, div[role="combobox"]')?.getAttribute('aria-label') || '').toLowerCase();
 
-    // Priority 2: Pin icon (SVG or 📍) container
-    for (const inp of inputs) {
-      const box = inp.closest('div[role="combobox"], label, div');
-      if (box) {
-        const hasSvg = !!box.querySelector('svg');
-        const hasPin = (box.innerText || '').includes('📍');
-        if (hasSvg || hasPin) {
-          const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
-          if (!aria.includes('preço') && !aria.includes('price') && !aria.includes('título') && !aria.includes('title')) {
-            return inp;
-          }
+      if (locKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentLabel.includes(kw) || parentAria.includes(kw))) {
+        if (!aria.includes('preço') && !ph.includes('preço') && !parentLabel.includes('preço')) {
+          return inp;
         }
       }
     }
 
-    // Priority 3: Form position (input situated before description textarea)
-    const descArea = document.querySelector('textarea, div[role="textbox"]');
+    // Strategy 2: Positional Anchor between Price and Description (100% reliable on /rental)
+    // On Facebook /rental, the fields are:
+    // [Tipo de Anúncio] -> [Tipo de Imóvel] -> [Quartos] -> [Banheiros] -> [Preço] -> [LOCALIZAÇÃO 📍] -> [Descrição]
     if (descArea) {
-      for (const inp of inputs) {
-        if (inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING) {
+      const priceInput = allInputs.find(inp => {
+        const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+        const parentLabel = (inp.closest('label')?.innerText || '').toLowerCase();
+        return aria.includes('preço') || ph.includes('preço') || parentLabel.includes('preço');
+      });
+
+      if (priceInput) {
+        for (const inp of allInputs) {
+          if (inp === priceInput) continue;
+          const afterPrice = priceInput.compareDocumentPosition(inp) & Node.DOCUMENT_POSITION_FOLLOWING;
+          const beforeDesc = inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING;
+          if (afterPrice && beforeDesc) {
+            return inp;
+          }
+        }
+      }
+
+      // If priceInput was not found, the input directly preceding descArea is Location
+      const inputsBeforeDesc = allInputs.filter(inp => {
+        const beforeDesc = inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING;
+        const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+        const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+        return beforeDesc && !aria.includes('quartos') && !aria.includes('banheiros') && !aria.includes('preço') && !ph.includes('preço');
+      });
+
+      if (inputsBeforeDesc.length > 0) {
+        return inputsBeforeDesc[inputsBeforeDesc.length - 1];
+      }
+    }
+
+    // Strategy 3: Check by pin icon (SVG or 📍)
+    for (const inp of allInputs) {
+      let cur = inp.parentElement;
+      for (let i = 0; i < 4 && cur && cur !== formRoot; i++) {
+        const hasSvg = !!cur.querySelector('svg');
+        const hasPinEmoji = (cur.innerText || '').includes('📍');
+        const svgAria = (cur.querySelector('svg')?.getAttribute('aria-label') || '').toLowerCase();
+        if (hasPinEmoji || svgAria.includes('local') || svgAria.includes('pin') || svgAria.includes('map')) {
           const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
           const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
-          if (!aria.includes('preço') && !aria.includes('quartos') && !aria.includes('banheiros') && !ph.includes('preço')) {
+          if (!aria.includes('preço') && !ph.includes('preço') && !aria.includes('quartos') && !aria.includes('banheiros')) {
             return inp;
           }
         }
+        cur = cur.parentElement;
       }
     }
 
@@ -1097,21 +1150,80 @@
   }
 
   async function fillLocationField(location) {
-    const locInput = findMarketplaceLocationInput();
-    if (!locInput || !location) return false;
+    let locInput = findMarketplaceLocationInput();
+    for (let retry = 0; retry < 5 && !locInput; retry++) {
+      await sleep(300);
+      locInput = findMarketplaceLocationInput();
+    }
 
-    locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
-    setReactInputValue(locInput, location);
-    await sleep(600);
+    if (!locInput || !location) {
+      console.warn('Campo de localização não encontrado.');
+      return false;
+    }
 
-    const option = document.querySelector('div[role="listbox"] div[role="option"], ul[role="listbox"] li, div[role="listbox"] div[role="button"]');
-    if (option) {
-      option.click();
-      option.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    // Extrai o nome da cidade reconhecido pelo Facebook Marketplace (ex: Palhoça ou São José)
+    let searchCity = location;
+    if (location.toLowerCase().includes('palhoça')) {
+      searchCity = 'Palhoça';
+    } else if (location.toLowerCase().includes('são josé') || location.toLowerCase().includes('sao jose')) {
+      searchCity = 'São José';
     } else {
+      searchCity = location.replace(/\s*-\s*[A-Za-z]{2}$/, '').trim();
+    }
+
+    // Focus & Clear
+    locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
+    locInput.focus();
+    locInput.click();
+    await sleep(200);
+
+    locInput.select?.();
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    setReactInputValue(locInput, '');
+    await sleep(200);
+
+    // Insere o texto da cidade simulando digitação real do usuário para o React/Comet
+    document.execCommand('insertText', false, searchCity);
+    locInput.dispatchEvent(new Event('input', { bubbles: true }));
+    locInput.dispatchEvent(new Event('change', { bubbles: true }));
+    locInput.dispatchEvent(new KeyboardEvent('keydown', { key: searchCity[searchCity.length - 1], bubbles: true }));
+    locInput.dispatchEvent(new KeyboardEvent('keyup', { key: searchCity[searchCity.length - 1], bubbles: true }));
+
+    // Aguarda até 3.5 segundos pelas opções de autocomplete do Facebook
+    let optionSelected = false;
+    const startWait = Date.now();
+    while (Date.now() - startWait < 3500) {
+      const options = Array.from(document.querySelectorAll(
+        'div[role="listbox"] div[role="option"], ul[role="listbox"] li, div[role="listbox"] [role="button"], div[role="option"], li[role="option"]'
+      ));
+
+      if (options.length > 0) {
+        const targetLower = searchCity.toLowerCase();
+        const bestOpt = options.find(opt => {
+          const txt = (opt.innerText || opt.textContent || '').toLowerCase();
+          return txt.includes(targetLower) || txt.includes('sc') || txt.includes('santa catarina');
+        }) || options[0];
+
+        bestOpt.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+        bestOpt.click();
+        bestOpt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        bestOpt.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        bestOpt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        bestOpt.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        bestOpt.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+        optionSelected = true;
+        await sleep(350);
+        break;
+      }
+      await sleep(250);
+    }
+
+    if (!optionSelected) {
       locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
       locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
     }
+
     return true;
   }
 
@@ -1155,24 +1267,7 @@
     return true;
   }
 
-  function scrollFormToBottom() {
-    const divs = Array.from(document.querySelectorAll('div'));
-    for (const d of divs) {
-      try {
-        if (d.scrollHeight > d.clientHeight && d.clientHeight > 200) {
-          const style = window.getComputedStyle(d);
-          if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-            d.scrollTop = d.scrollHeight;
-          }
-        }
-      } catch (e) {}
-    }
-    try { window.scrollTo(0, document.body.scrollHeight); } catch (e) {}
-  }
-
-  function applyHideFromFriends(enable = true) {
-    scrollFormToBottom();
-
+  async function applyHideFromFriends(enable = true) {
     const keywords = [
       'ocultar dos amigos',
       'ocultar para amigos',
@@ -1181,37 +1276,37 @@
       'hide from friends'
     ];
 
+    function isElementChecked(el) {
+      return el.getAttribute('aria-checked') === 'true' || el.checked === true;
+    }
+
     function toggleElement(el) {
-      const isChecked = el.getAttribute('aria-checked') === 'true' || el.checked === true;
+      const isChecked = isElementChecked(el);
       if (enable && !isChecked) {
-        el.scrollIntoView({ behavior: 'instant', block: 'center' });
         el.click();
         el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
         return true;
-      } else if (!enable && isChecked) {
-        el.scrollIntoView({ behavior: 'instant', block: 'center' });
-        el.click();
-        return true;
       }
       return isChecked === enable;
     }
 
-    // 1. Check all elements with role="switch" or checkbox inputs
+    // 1. Procurar interruptor já renderizado no DOM
     const toggles = Array.from(document.querySelectorAll('[role="switch"], input[type="checkbox"], input[role="switch"]'));
     for (const t of toggles) {
       const ariaLabel = (t.getAttribute('aria-label') || '').toLowerCase();
-      const parentLabel = t.closest('label');
-      const parentRow = t.closest('div[role="button"]') || t.closest('div[class]') || t.parentElement;
-      const combinedText = ((parentLabel?.innerText || '') + ' ' + (parentRow?.innerText || '') + ' ' + ariaLabel).toLowerCase();
+      const parentLabel = (t.closest('label')?.innerText || '').toLowerCase();
+      const parentRow = (t.closest('div[role="button"]') || t.closest('div[class]') || t.parentElement)?.innerText?.toLowerCase() || '';
+      const combinedText = `${parentLabel} ${parentRow} ${ariaLabel}`;
 
       if (keywords.some(kw => combinedText.includes(kw))) {
+        if (isElementChecked(t)) return true;
         return toggleElement(t);
       }
     }
 
-    // 2. Scan text across spans and divs to find the matching row
+    // 2. Procurar por textos correspondentes
     const allSpans = Array.from(document.querySelectorAll('span, div, label, p'));
     for (const s of allSpans) {
       const text = (s.textContent || '').trim().toLowerCase();
@@ -1219,7 +1314,27 @@
         const row = s.closest('label') || s.closest('div[role="button"]') || s.closest('div[class]');
         if (row) {
           const sw = row.querySelector('[role="switch"], input[type="checkbox"]') || row;
+          if (isElementChecked(sw)) return true;
           return toggleElement(sw);
+        }
+      }
+    }
+
+    // 3. Se ainda não estiver no DOM, rola APENAS o container do formulário uma única vez
+    const formBox = getMarketplaceFormContainer();
+    if (formBox && formBox !== document.body) {
+      formBox.scrollTop = formBox.scrollHeight;
+      await sleep(350);
+
+      const retryToggles = Array.from(document.querySelectorAll('[role="switch"], input[type="checkbox"]'));
+      for (const t of retryToggles) {
+        const ariaLabel = (t.getAttribute('aria-label') || '').toLowerCase();
+        const parentLabel = (t.closest('label')?.innerText || '').toLowerCase();
+        const parentRow = (t.closest('div[role="button"]') || t.closest('div[class]') || t.parentElement)?.innerText?.toLowerCase() || '';
+        const combinedText = `${parentLabel} ${parentRow} ${ariaLabel}`;
+        if (keywords.some(kw => combinedText.includes(kw))) {
+          toggleElement(t);
+          break;
         }
       }
     }
@@ -1443,15 +1558,19 @@
       await sleep(400);
     }
 
-    // 8. Ocultar dos amigos (Hide from friends) - Ativação e persistência multi-pass
+    // 8. Ocultar dos amigos (Hide from friends)
     if (hideFromFriends !== false) {
-      applyHideFromFriends(true);
-      setTimeout(() => applyHideFromFriends(true), 500);
-      setTimeout(() => applyHideFromFriends(true), 1200);
-      setTimeout(() => applyHideFromFriends(true), 2200);
-      setTimeout(() => applyHideFromFriends(true), 3500);
+      await applyHideFromFriends(true);
       filledCount++;
     }
+
+    // 9. Restaurar scroll do formulário para o topo para que o usuário veja tudo do início sem ficar descendo sozinho
+    await sleep(250);
+    const formBox = getMarketplaceFormContainer();
+    if (formBox && formBox !== document.body) {
+      formBox.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
 
     return { success: filledCount > 0, count: filledCount };
   }
@@ -2435,11 +2554,11 @@
     const start = Date.now();
     let advanced = false;
 
+    // Garante que 'Ocultar dos amigos' está ativo uma vez antes de avançar
+    await applyHideFromFriends(true);
+
     // Step 1: Wait for "Avançar" button to become enabled and click it
     while (Date.now() - start < timeoutSec * 1000) {
-      // Re-garante que 'Ocultar dos amigos' está ativo antes de avançar
-      applyHideFromFriends(true);
-
       const buttons = Array.from(document.querySelectorAll('div[role="button"], button'));
       for (const btn of buttons) {
         const text = (btn.innerText || btn.textContent || '').trim().toLowerCase();
