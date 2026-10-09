@@ -944,7 +944,7 @@
 
   async function selectRentalDropdownOption(fieldKeywords, optionKeywords) {
     let trigger = null;
-    const candidates = Array.from(document.querySelectorAll('label, div[role="combobox"], div[aria-haspopup="listbox"], div[role="button"]'));
+    const candidates = Array.from(document.querySelectorAll('label, div[role="combobox"], div[aria-haspopup="listbox"], div[role="button"], div[tabindex="0"]'));
     for (const el of candidates) {
       const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
       const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
@@ -961,10 +961,23 @@
       }
     }
 
+    // Positional fallback for rental form
+    if (!trigger && window.location.href.includes('/rental')) {
+      const comboboxes = Array.from(document.querySelectorAll('div[role="combobox"], div[aria-haspopup="listbox"]'));
+      if (fieldKeywords.some(k => k.includes('venda') || k.includes('anúncio')) && comboboxes[0]) {
+        trigger = comboboxes[0];
+      } else if (fieldKeywords.some(k => k.includes('imóvel') || k.includes('propriedade')) && comboboxes[1]) {
+        trigger = comboboxes[1];
+      }
+    }
+
     if (!trigger) return false;
 
     trigger.scrollIntoView({ behavior: 'instant', block: 'center' });
+    trigger.focus?.();
     trigger.click();
+    trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    trigger.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     await sleep(400);
 
@@ -984,7 +997,162 @@
       }
     }
 
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
     return false;
+  }
+
+  async function fillNumberOrDropdownField(fieldKeywords, targetValue) {
+    const strVal = String(targetValue).trim();
+
+    // Strategy 1: Direct Input field
+    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="file"])'));
+    for (const inp of inputs) {
+      const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+      const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+      const nm = (inp.getAttribute('name') || '').toLowerCase();
+      const parentLabel = (inp.closest('label')?.innerText || '').toLowerCase();
+      const parentDiv = (inp.parentElement?.innerText || '').toLowerCase();
+
+      if (fieldKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || nm.includes(kw) || parentLabel.includes(kw) || parentDiv.includes(kw))) {
+        setReactInputValue(inp, strVal);
+        return true;
+      }
+    }
+
+    // Strategy 2: Segmented / Pill Button Group (e.g. 1 2 3 4 5+)
+    const containers = Array.from(document.querySelectorAll('label, div[role="group"], div[role="radiogroup"], div'));
+    for (const c of containers) {
+      const txt = (c.innerText || '').toLowerCase();
+      const aria = (c.getAttribute('aria-label') || '').toLowerCase();
+      if (fieldKeywords.some(kw => (txt.startsWith(kw) || aria.includes(kw)) && txt.length < 150)) {
+        const btns = Array.from(c.querySelectorAll('button, div[role="button"], div[role="radio"], span'));
+        for (const b of btns) {
+          const bText = (b.innerText || b.textContent || '').trim();
+          if (bText === strVal || bText === `${strVal}+`) {
+            b.scrollIntoView({ behavior: 'instant', block: 'center' });
+            b.click();
+            b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            return true;
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Combobox / Dropdown
+    const optKeywords = [
+      strVal,
+      `${strVal} quarto`,
+      `${strVal} quartos`,
+      `${strVal} banheiro`,
+      `${strVal} banheiros`,
+      `${strVal}+`
+    ];
+    return await selectRentalDropdownOption(fieldKeywords, optKeywords);
+  }
+
+  function findMarketplaceLocationInput() {
+    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="file"])'));
+
+    // Priority 1: Label / aria-label / placeholder
+    const locKeywords = ['endereço do imóvel', 'localização do imóvel', 'endereço', 'localização', 'local', 'cidade', 'location', 'address', 'bairro'];
+    for (const inp of inputs) {
+      const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+      const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+      const parentLabel = (inp.closest('label')?.innerText || '').toLowerCase();
+      if (locKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentLabel.includes(kw))) {
+        return inp;
+      }
+    }
+
+    // Priority 2: Pin icon (SVG or 📍) container
+    for (const inp of inputs) {
+      const box = inp.closest('div[role="combobox"], label, div');
+      if (box) {
+        const hasSvg = !!box.querySelector('svg');
+        const hasPin = (box.innerText || '').includes('📍');
+        if (hasSvg || hasPin) {
+          const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+          if (!aria.includes('preço') && !aria.includes('price') && !aria.includes('título') && !aria.includes('title')) {
+            return inp;
+          }
+        }
+      }
+    }
+
+    // Priority 3: Form position (input situated before description textarea)
+    const descArea = document.querySelector('textarea, div[role="textbox"]');
+    if (descArea) {
+      for (const inp of inputs) {
+        if (inp.compareDocumentPosition(descArea) & Node.DOCUMENT_POSITION_FOLLOWING) {
+          const aria = (inp.getAttribute('aria-label') || '').toLowerCase();
+          const ph = (inp.getAttribute('placeholder') || '').toLowerCase();
+          if (!aria.includes('preço') && !aria.includes('quartos') && !aria.includes('banheiros') && !ph.includes('preço')) {
+            return inp;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  async function fillLocationField(location) {
+    const locInput = findMarketplaceLocationInput();
+    if (!locInput || !location) return false;
+
+    locInput.scrollIntoView({ behavior: 'instant', block: 'center' });
+    setReactInputValue(locInput, location);
+    await sleep(600);
+
+    const option = document.querySelector('div[role="listbox"] div[role="option"], ul[role="listbox"] li, div[role="listbox"] div[role="button"]');
+    if (option) {
+      option.click();
+      option.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    } else {
+      locInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+      locInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+    }
+    return true;
+  }
+
+  function findMarketplaceDescriptionField() {
+    const descKeywords = ['descrição do imóvel', 'descrição', 'description', 'detalhes do imóvel'];
+
+    const textareas = Array.from(document.querySelectorAll('textarea'));
+    for (const ta of textareas) {
+      const aria = (ta.getAttribute('aria-label') || '').toLowerCase();
+      const ph = (ta.getAttribute('placeholder') || '').toLowerCase();
+      const parentText = (ta.closest('label, div')?.innerText || '').toLowerCase();
+      if (descKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentText.includes(kw))) {
+        return ta;
+      }
+    }
+
+    const editables = Array.from(document.querySelectorAll('div[role="textbox"], div[contenteditable="true"]'));
+    for (const ed of editables) {
+      const aria = (ed.getAttribute('aria-label') || '').toLowerCase();
+      const ph = (ed.getAttribute('placeholder') || '').toLowerCase();
+      const parentText = (ed.closest('label, div')?.innerText || '').toLowerCase();
+      if (descKeywords.some(kw => aria.includes(kw) || ph.includes(kw) || parentText.includes(kw))) {
+        return ed;
+      }
+    }
+
+    if (textareas.length === 1) return textareas[0];
+    return null;
+  }
+
+  async function fillDescriptionField(description) {
+    const descEl = findMarketplaceDescriptionField();
+    if (!descEl || !description) return false;
+
+    descEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+    if (descEl.tagName.toLowerCase() === 'textarea') {
+      setReactTextareaValue(descEl, description);
+    } else {
+      setReactContentEditable(descEl, description);
+    }
+    return true;
   }
 
   function scrollFormToBottom() {
@@ -1099,13 +1267,21 @@
       }
 
       const hideFriends = document.getElementById('cl-hide-friends-input')?.checked ?? true;
+      const extraRentalData = {
+        rentalType: activePreset?.rentalType || 'Imóvel residencial para venda',
+        propertyType: activePreset?.propertyType || 'Casa',
+        bedrooms: activePreset?.bedrooms || '3',
+        bathrooms: activePreset?.bathrooms || '2'
+      };
+
       const result = await fillFacebookMarketplaceFields(
         finalTitle,
         price,
         finalDescription,
         location,
         selectedFiles,
-        hideFriends
+        hideFriends,
+        extraRentalData
       );
 
       if (result.success) {
@@ -1122,9 +1298,14 @@
     }
   }
 
-  async function fillFacebookMarketplaceFields(title, price, description, location, files = [], hideFromFriends = true) {
+  async function fillFacebookMarketplaceFields(title, price, description, location, files = [], hideFromFriends = true, extraRentalData = {}) {
     let filledCount = 0;
     const isRentalPage = window.location.href.includes('/rental');
+
+    const rentalType = extraRentalData.rentalType || 'Imóvel residencial para venda';
+    const propertyType = extraRentalData.propertyType || 'Casa';
+    const bedrooms = extraRentalData.bedrooms || '3';
+    const bathrooms = extraRentalData.bathrooms || '2';
 
     // Helper: Find element by various attributes
     function findInputByLabelOrPlaceholder(keywords) {
@@ -1156,12 +1337,12 @@
     }
 
     // 2. Se estiver na tela de Imóveis (/marketplace/create/rental) ou houver campos imobiliários
-    const hasRentalFields = isRentalPage || !!document.querySelector('[aria-label*="venda ou locação" i], [aria-label*="imóvel" i], [aria-label*="quartos" i]');
+    const hasRentalFields = isRentalPage || !!document.querySelector('[aria-label*="venda ou locação" i], [aria-label*="imóvel" i], [aria-label*="quartos" i], [aria-label*="banheiros" i]');
     if (hasRentalFields) {
-      // 2.1 Tipo de anúncio (Imóvel para venda ou locação -> Imóvel para venda)
+      // 2.1 Tipo de anúncio (Imóvel para venda ou locação -> Imóvel residencial para venda)
       try {
         const adTypeFilled = await selectRentalDropdownOption(
-          ['imóvel para venda ou locação', 'para venda ou para locação', 'tipo de anúncio', 'venda ou locação', 'home for sale or rent'],
+          ['imóvel residencial para venda ou', 'imóvel para venda ou locação', 'para venda ou para locação', 'tipo de anúncio', 'venda ou locação', 'venda ou aluguel', 'home for sale or rent'],
           ['imóvel residencial para venda', 'imóvel para venda', 'para venda', 'venda', 'venda residencial']
         );
         if (adTypeFilled) filledCount++;
@@ -1174,7 +1355,7 @@
       try {
         const propTypeFilled = await selectRentalDropdownOption(
           ['tipo de imóvel', 'tipo de propriedade', 'property type'],
-          ['casa', 'house']
+          [propertyType, 'casa', 'house']
         );
         if (propTypeFilled) filledCount++;
       } catch (e) {
@@ -1183,30 +1364,26 @@
       await sleep(400);
 
       // 2.3 Número de quartos (3 quartos)
-      const bedInput = findInputByLabelOrPlaceholder(['número de quartos', 'quartos', 'dormitórios', 'bedrooms']);
-      if (bedInput && bedInput.tagName.toLowerCase() === 'input') {
-        setReactInputValue(bedInput, '3');
-        filledCount++;
-      } else {
-        const bedFilled = await selectRentalDropdownOption(
+      try {
+        const bedFilled = await fillNumberOrDropdownField(
           ['número de quartos', 'quartos', 'dormitórios', 'bedrooms'],
-          ['3', '3 quartos', 'três']
+          bedrooms || '3'
         );
         if (bedFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao preencher quartos:', e);
       }
       await sleep(400);
 
       // 2.4 Número de banheiros (2 banheiros)
-      const bathInput = findInputByLabelOrPlaceholder(['número de banheiros', 'banheiros', 'bathrooms']);
-      if (bathInput && bathInput.tagName.toLowerCase() === 'input') {
-        setReactInputValue(bathInput, '2');
-        filledCount++;
-      } else {
-        const bathFilled = await selectRentalDropdownOption(
+      try {
+        const bathFilled = await fillNumberOrDropdownField(
           ['número de banheiros', 'banheiros', 'bathrooms'],
-          ['2', '2 banheiros', 'dois']
+          bathrooms || '2'
         );
         if (bathFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao preencher banheiros:', e);
       }
       await sleep(400);
     }
@@ -1244,30 +1421,26 @@
       await sleep(400);
     }
 
-    // 6. Descrição (Com 50 quebras de linha e "imagens ilustrativas")
-    const descEl = document.querySelector('textarea[aria-label*="Descrição"], textarea[placeholder*="Descrição"]') ||
-                   document.querySelector('div[role="textbox"][aria-label*="Descrição"]') ||
-                   findInputByLabelOrPlaceholder(['Descrição', 'Description', 'Descrição do imóvel']);
-    if (descEl && description) {
-      if (descEl.tagName.toLowerCase() === 'textarea') {
-        setReactTextareaValue(descEl, description);
-      } else {
-        setReactContentEditable(descEl, description);
+    // 6. Localização / Endereço do imóvel (visível apenas na região)
+    if (location) {
+      try {
+        const locFilled = await fillLocationField(location);
+        if (locFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao preencher localização:', e);
       }
-      filledCount++;
+      await sleep(400);
     }
 
-    // 7. Localização / Endereço do imóvel (visível apenas na região)
-    if (location) {
-      const locInput = findInputByLabelOrPlaceholder(['Endereço do imóvel', 'Localização', 'Location', 'Local', 'Cidade', 'Endereço', 'Address']);
-      if (locInput) {
-        setReactInputValue(locInput, location);
-        filledCount++;
-        setTimeout(() => {
-          const option = document.querySelector('div[role="listbox"] div[role="option"], ul[role="listbox"] li');
-          if (option) option.click();
-        }, 500);
+    // 7. Descrição do imóvel (Com 50 quebras de linha e "imagens ilustrativas")
+    if (description) {
+      try {
+        const descFilled = await fillDescriptionField(description);
+        if (descFilled) filledCount++;
+      } catch (e) {
+        console.warn('Erro ao preencher descrição:', e);
       }
+      await sleep(400);
     }
 
     // 8. Ocultar dos amigos (Hide from friends) - Ativação e persistência multi-pass
@@ -2059,6 +2232,10 @@
             location,
             description,
             scheduledTime,
+            rentalType: 'Imóvel residencial para venda',
+            propertyType: 'Casa',
+            bedrooms: '3',
+            bathrooms: '2',
             hideFromFriends: hideFriends,
             autoPublish: autoPub
           }
@@ -2171,7 +2348,13 @@
             ad.description,
             ad.location,
             photos,
-            ad.hideFromFriends !== false
+            ad.hideFromFriends !== false,
+            {
+              rentalType: ad.rentalType || 'Imóvel residencial para venda',
+              propertyType: ad.propertyType || 'Casa',
+              bedrooms: ad.bedrooms || '3',
+              bathrooms: ad.bathrooms || '2'
+            }
           );
           if (res.success) {
             ad.status = 'completed';
@@ -2347,7 +2530,13 @@
         pendingAd.description,
         pendingAd.location,
         photos,
-        pendingAd.hideFromFriends !== false
+        pendingAd.hideFromFriends !== false,
+        {
+          rentalType: pendingAd.rentalType || 'Imóvel residencial para venda',
+          propertyType: pendingAd.propertyType || 'Casa',
+          bedrooms: pendingAd.bedrooms || '3',
+          bathrooms: pendingAd.bathrooms || '2'
+        }
       );
 
       if (result.success) {

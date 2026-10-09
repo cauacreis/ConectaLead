@@ -293,6 +293,10 @@ SUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
 
 SP_HOUSES_PRESETS.forEach(p => {
   p.hideFromFriends = true;
+  p.rentalType = 'Imóvel residencial para venda';
+  p.propertyType = 'Casa';
+  p.bedrooms = '3';
+  p.bathrooms = '2';
 });
 
 if (typeof module !== 'undefined' && module.exports) {
