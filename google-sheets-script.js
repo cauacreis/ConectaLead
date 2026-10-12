@@ -1,15 +1,30 @@
 // ========================================================
-// ConectaLead - Script Profissional e Inteligente para Google Planilhas
+// ConectaLead - Planilha Limpa (Nome | Numero | Link Whatsapp)
 // ========================================================
+// COMO ARRUMAR SUA PLANILHA AGORA EM 1 CLIQUE:
+// 1. Na sua planilha Google, clique em: Extensões -> Apps Script
+// 2. Apague tudo, cole este código e clique no ícone de Salvar (disquete)
+// 3. Clique no botão "▶ Executar" no topo para arrumar todas as linhas atuais na hora!
+// 4. Para os próximos leads já caírem no formato novo: clique em "Implantar" ->
+//    "Gerenciar implantações" -> ícone de lápis (Editar) -> Versão: "Nova versão" -> "Implantar".
+// ========================================================
+
+function arrumarPlanilhaAgora() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  reorganizarPlanilhaPara3Colunas(sheet);
+}
 
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getActiveSheet();
 
-    // 1. Inicializa cabeçalhos e colunas se a planilha estiver totalmente vazia
-    if (sheet.getLastRow() === 0) {
-      criarCabecalhoEConfigurarColunas(sheet);
+    // Se a planilha ainda estiver no formato antigo (ex: "Data e Hora" na coluna A) ou vazia,
+    // converte automaticamente para as 3 colunas: Nome | Numero | Link Whatsapp
+    var firstHeader = sheet.getLastRow() > 0 ? String(sheet.getRange(1, 1).getValue() || "").trim() : "";
+    if (sheet.getLastRow() === 0 || firstHeader.toLowerCase() !== "nome") {
+      reorganizarPlanilhaPara3Colunas(sheet);
     }
 
     var data = {};
@@ -17,65 +32,49 @@ function doPost(e) {
       data = JSON.parse(e.postData.contents);
     }
 
-    // 2. Higienizacao estrita de Nome contra textos de sistema do Facebook
-    var nomeFinal = data.nome || data.name || "";
+    // Se for apenas comando de organização/teste sem número real, encerra após organizar
+    var rawPhone = String(data.numero || data.whatsapp || data.phone || "").replace(/\D/g, "");
+    if (data.action === "organize" || !rawPhone || rawPhone.indexOf("999998888") !== -1) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", action: "organized" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Remove prefixo 55 se vier duplicado com 12 ou 13 dígitos
+    if ((rawPhone.length === 12 || rawPhone.length === 13) && rawPhone.indexOf("55") === 0) {
+      rawPhone = rawPhone.slice(2);
+    }
+
+    var nomeBruto = data.nome || data.name || "";
     var msgOriginal = data.mensagem || data.message || data.customerMessage || "";
-    nomeFinal = sanitizarNomeCliente(nomeFinal, msgOriginal);
+    var nomeFinal = sanitizarNomeCliente(nomeBruto, msgOriginal);
+    var zapFormatado = formatarZap(rawPhone);
+    var waLink = "https://wa.me/55" + rawPhone;
 
-    // 3. Higienizacao estrita de Produto
-    var produtoFinal = data.produto || data.product || "";
-    if (!produtoFinal || produtoFinal.toLowerCase().trim() === "marketplace" || produtoFinal.toLowerCase().indexOf("não lida") !== -1) {
-      produtoFinal = "Casa Disponível em PALHOÇA";
-    }
-
-    // 4. Links formatados
-    var rawPhone = (data.whatsapp || data.phone || "").replace(/\D/g, '');
-    var waLink = data.link_whatsapp || data.waLink || (rawPhone ? "https://wa.me/55" + rawPhone : "");
-    var formulaLink = waLink ? '=HYPERLINK("' + waLink + '"; "📲 Chamar no WhatsApp")' : "";
-
-    var adLink = data.link_anuncio || data.ad_link || data.adLink || "";
-    var formulaAdLink = adLink ? '=HYPERLINK("' + adLink + '"; "🔗 Ver Anúncio")' : produtoFinal;
-
-    var dataHora = data.data || data.date || new Date().toLocaleString("pt-BR");
-    var zapFormatado = data.whatsapp || data.phone || (rawPhone ? formatarZap(rawPhone) : "");
-
-    // 5. Insercao inteligente baseada nos cabecalhos existentes da planilha
-    var lastCol = Math.max(sheet.getLastColumn(), 7);
-    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0] || [];
-    
-    var colMap = mapearColunas(headers);
-    var novaLinha = [];
-
-    if (colMap.nome && colMap.whatsapp) {
-      // Preenche respeitando a ordem exata das colunas do usuario
-      for (var c = 1; c <= lastCol; c++) {
-        if (colMap.data === c) novaLinha.push(dataHora);
-        else if (colMap.nome === c) novaLinha.push(nomeFinal);
-        else if (colMap.whatsapp === c) novaLinha.push(zapFormatado);
-        else if (colMap.mensagem === c) novaLinha.push(msgOriginal);
-        else if (colMap.produto === c) novaLinha.push(produtoFinal);
-        else if (colMap.adLink === c) novaLinha.push(formulaAdLink);
-        else if (colMap.waLink === c) novaLinha.push(formulaLink);
-        else novaLinha.push("");
+    // Verifica se o número já existe na coluna B para não duplicar
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      var existingPhones = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+      for (var i = 0; i < existingPhones.length; i++) {
+        var existingClean = String(existingPhones[i][0] || "").replace(/\D/g, "");
+        if (existingClean === rawPhone) {
+          var rowToUpdate = i + 2;
+          var currentName = String(sheet.getRange(rowToUpdate, 1).getValue() || "").trim();
+          if ((!currentName || currentName === "Cliente Marketplace") && nomeFinal !== "Cliente Marketplace") {
+            sheet.getRange(rowToUpdate, 1).setValue(nomeFinal);
+          }
+          sheet.getRange(rowToUpdate, 2).setValue(zapFormatado);
+          sheet.getRange(rowToUpdate, 3).setValue(waLink);
+          formatarLinha3Colunas(sheet, rowToUpdate);
+          return ContentService.createTextOutput(JSON.stringify({ status: "updated" }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
       }
-    } else {
-      // Ordem padrao recomendada
-      novaLinha = [
-        dataHora,
-        nomeFinal,
-        zapFormatado,
-        msgOriginal,
-        produtoFinal,
-        formulaAdLink,
-        formulaLink
-      ];
     }
 
-    sheet.appendRow(novaLinha);
-    var rowIdx = sheet.getLastRow();
-
-    formatarLinha(sheet, rowIdx);
-    ajustarLarguras(sheet);
+    sheet.appendRow([nomeFinal, zapFormatado, waLink]);
+    var newRowIdx = sheet.getLastRow();
+    formatarLinha3Colunas(sheet, newRowIdx);
+    ajustarLarguras3Colunas(sheet);
 
     return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -87,102 +86,179 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("ConectaLead Webhook Ativo e Operante!");
+  return ContentService.createTextOutput("ConectaLead Webhook Ativo (Nome | Numero | Link Whatsapp)!");
 }
 
-// Menu personalizado no Google Sheets
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('⚡ ConectaLead')
-    .addItem('🎨 Reformatar e Organizar Tudo', 'formatarTodaPlanilha')
-    .addItem('🔧 Corrigir Nomes e Linhas Antigas', 'corrigirLinhasAntigas')
+    .createMenu("⚡ ConectaLead")
+    .addItem("🚀 Arrumar Planilha (Nome | Numero | Link Whatsapp)", "arrumarPlanilhaAgora")
     .addToUi();
 }
 
-function mapearColunas(headers) {
-  var map = {};
-  for (var i = 0; i < headers.length; i++) {
-    var h = String(headers[i] || "").toLowerCase().trim();
-    if (h.indexOf("data") !== -1 || h.indexOf("hora") !== -1) map.data = i + 1;
-    else if (h.indexOf("nome") !== -1 || h.indexOf("cliente") !== -1) map.nome = i + 1;
-    else if (h.indexOf("whats") !== -1 || h.indexOf("telefone") !== -1 || h.indexOf("zap") !== -1) map.whatsapp = i + 1;
-    else if (h.indexOf("mensagem") !== -1 || h.indexOf("texto") !== -1) map.mensagem = i + 1;
-    else if (h.indexOf("produto") !== -1 || h.indexOf("casa") !== -1 || h.indexOf("imóvel") !== -1 || h.indexOf("imovel") !== -1) map.produto = i + 1;
-    else if (h.indexOf("anúncio") !== -1 || h.indexOf("anuncio") !== -1) map.adLink = i + 1;
-    else if (h.indexOf("ação") !== -1 || h.indexOf("acao") !== -1 || h.indexOf("chamar") !== -1 || h.indexOf("link") !== -1) map.waLink = i + 1;
-  }
-  return map;
-}
+function reorganizarPlanilhaPara3Colunas(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var leadsLimpos = [];
+  var telefonesVistos = {};
 
-function sanitizarNomeCliente(nome, mensagem) {
-  var JUNK = ["não lida", "nao lida", "seu classificado", "classificado", "recebeu", "visualizações", "mensagens", "marketplace"];
-  var lower = String(nome || "").toLowerCase().trim();
-  var isJunk = !nome || nome.length < 2 || /\d/.test(nome);
-  
-  for (var j = 0; j < JUNK.length; j++) {
-    if (lower.indexOf(JUNK[j]) !== -1) {
-      isJunk = true;
-      break;
+  if (lastRow >= 2 && lastCol >= 2) {
+    var allValues = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = allValues[0].map(function(h) { return String(h || "").toLowerCase().trim(); });
+
+    // Descobre onde estavam Nome e Telefone na planilha antiga
+    for (var r = 1; r < allValues.length; r++) {
+      var row = allValues[r];
+      var foundPhone = "";
+      var foundName = "";
+
+      // Procura telefone na linha
+      for (var c = 0; c < row.length; c++) {
+        var cellStr = String(row[c] || "").trim();
+        if (!cellStr || cellStr.indexOf("http") === 0) continue;
+        // Ignora datas (ex: 11/10/2026)
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(cellStr)) continue;
+
+        var digits = cellStr.replace(/\D/g, "");
+        if (digits.length >= 10 && digits.length <= 13) {
+          if (digits.length >= 12 && digits.indexOf("55") === 0) {
+            digits = digits.slice(2);
+          }
+          foundPhone = digits;
+          break;
+        }
+      }
+
+      // Ignora linhas vazias ou linha de teste (99999-8888)
+      if (!foundPhone || foundPhone.indexOf("999998888") !== -1) {
+        continue;
+      }
+
+      // Procura o nome real na linha (prioriza coluna "nome" se existir, depois células com nome válido)
+      var candidatosNome = [];
+      var nomeHeaderIdx = headers.indexOf("nome");
+      if (nomeHeaderIdx !== -1 && row[nomeHeaderIdx]) {
+        candidatosNome.push(String(row[nomeHeaderIdx]));
+      }
+      for (var k = 0; k < row.length; k++) {
+        if (row[k]) candidatosNome.push(String(row[k]));
+      }
+
+      for (var n = 0; n < candidatosNome.length; n++) {
+        var candidato = candidatosNome[n].trim();
+        var limpo = extrairNomeValido(candidato);
+        if (limpo && limpo !== "Cliente Marketplace") {
+          foundName = limpo;
+          break;
+        }
+      }
+
+      if (!foundName) {
+        foundName = "Cliente Marketplace";
+      }
+
+      if (!telefonesVistos[foundPhone]) {
+        telefonesVistos[foundPhone] = true;
+        leadsLimpos.push([
+          foundName,
+          formatarZap(foundPhone),
+          "https://wa.me/55" + foundPhone
+        ]);
+      }
     }
   }
 
-  if (isJunk && mensagem) {
-    // Tenta extrair da mensagem (ex: "Orli: 48984442595" -> "Orli")
-    var m = mensagem.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s*[:\-–—\s]+\(?\d{2}\)?/);
-    if (m && m[1]) return m[1].trim();
+  // Limpa toda a planilha (remove colunas antigas como Data, Fodase, Produto, etc.)
+  sheet.clear();
+
+  // Cria o cabeçalho de 3 colunas: Nome | Numero | Link Whatsapp
+  sheet.getRange(1, 1, 1, 3).setValues([["Nome", "Numero", "Link Whatsapp"]]);
+  sheet.setFrozenRows(1);
+  sheet.setRowHeight(1, 38);
+
+  var headerRange = sheet.getRange(1, 1, 1, 3);
+  headerRange.setFontFamily("Segoe UI");
+  headerRange.setFontSize(11);
+  headerRange.setFontWeight("bold");
+  headerRange.setBackground("#2563EB");
+  headerRange.setFontColor("#FFFFFF");
+  headerRange.setVerticalAlignment("middle");
+  headerRange.setHorizontalAlignment("left");
+
+  // Insere todos os leads reais limpos e organizados
+  if (leadsLimpos.length > 0) {
+    sheet.getRange(2, 1, leadsLimpos.length, 3).setValues(leadsLimpos);
+    for (var idx = 0; idx < leadsLimpos.length; idx++) {
+      formatarLinha3Colunas(sheet, idx + 2);
+    }
   }
 
-  return isJunk ? "Cliente Marketplace" : nome.trim();
+  ajustarLarguras3Colunas(sheet);
+}
+
+function extrairNomeValido(texto) {
+  if (!texto) return "";
+  var str = String(texto).trim();
+  if (!str || str.indexOf("http") === 0) return "";
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) return "";
+
+  // Se for "Orli: 48984442595", separa apenas a parte do nome
+  var prefixMatch = str.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,25}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,25})?)\s*[:\-–—]\s*\(?\d{2}\)?/);
+  if (prefixMatch && prefixMatch[1]) {
+    str = prefixMatch[1].trim();
+  }
+
+  // Se vier do título do chat do Marketplace ("Willian · Casa Disponível...")
+  str = str.split(/[·•|]/)[0].trim();
+
+  var lower = str.toLowerCase();
+  var JUNK = [
+    "cliente marketplace", "produto marketplace", "marketplace", "conversas", "conversa",
+    "não lida", "nao lida", "seu classificado", "classificado", "recebeu",
+    "faça a verificação", "faca a verificacao", "casa disponível", "casa disponivel",
+    "item de teste", "teste de integração", "teste de integracao", "bate-papo", "mensagens"
+  ];
+
+  for (var i = 0; i < JUNK.length; i++) {
+    if (lower.indexOf(JUNK[i]) !== -1) return "";
+  }
+
+  // Ignora se ainda tiver muitos números (como um telefone puro)
+  if (/\d{4,}/.test(str)) return "";
+
+  return capitalizarNome(str);
+}
+
+function sanitizarNomeCliente(nome, mensagem) {
+  var limpo = extrairNomeValido(nome);
+  if (limpo) return limpo;
+
+  var daMsg = extrairNomeValido(mensagem);
+  if (daMsg) return daMsg;
+
+  return "Cliente Marketplace";
+}
+
+function capitalizarNome(nome) {
+  return String(nome || "").trim().split(/\s+/).map(function(parte) {
+    if (!parte) return "";
+    return parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase();
+  }).join(" ");
 }
 
 function formatarZap(num) {
-  if (num.length === 11) {
-    return "(" + num.slice(0, 2) + ") " + num.slice(2, 7) + "-" + num.slice(7);
-  } else if (num.length === 10) {
-    return "(" + num.slice(0, 2) + ") " + num.slice(2, 6) + "-" + num.slice(6);
+  var clean = String(num || "").replace(/\D/g, "");
+  if (clean.length === 11) {
+    return "(" + clean.slice(0, 2) + ") " + clean.slice(2, 7) + "-" + clean.slice(7);
+  } else if (clean.length === 10) {
+    return "(" + clean.slice(0, 2) + ") " + clean.slice(2, 6) + "-" + clean.slice(6);
   }
-  return num;
+  return clean;
 }
 
-function criarCabecalhoEConfigurarColunas(sheet) {
-  sheet.appendRow([
-    "Data e Hora",
-    "Nome do Cliente",
-    "WhatsApp",
-    "Mensagem Original",
-    "Produto / Casa",
-    "Link do Anúncio",
-    "Ação Rápida"
-  ]);
-
-  sheet.setFrozenRows(1);
-  sheet.setRowHeight(1, 42);
-
-  var header = sheet.getRange(1, 1, 1, 7);
-  header.setFontFamily("Segoe UI");
-  header.setFontSize(11);
-  header.setFontWeight("bold");
-  header.setBackground("#0F172A");
-  header.setFontColor("#FFFFFF");
-  header.setVerticalAlignment("middle");
-  header.setHorizontalAlignment("center");
-}
-
-function ajustarLarguras(sheet) {
-  sheet.setColumnWidth(1, 160); // Data e Hora
-  sheet.setColumnWidth(2, 190); // Nome do Cliente
-  sheet.setColumnWidth(3, 150); // WhatsApp
-  sheet.setColumnWidth(4, 300); // Mensagem Original
-  sheet.setColumnWidth(5, 220); // Produto / Casa
-  sheet.setColumnWidth(6, 170); // Link do Anúncio
-  sheet.setColumnWidth(7, 170); // Ação Rápida WhatsApp
-}
-
-function formatarLinha(sheet, rowIdx) {
-  var lastCol = Math.max(sheet.getLastColumn(), 7);
-  var range = sheet.getRange(rowIdx, 1, 1, lastCol);
-  sheet.setRowHeight(rowIdx, 36);
-
+function formatarLinha3Colunas(sheet, rowIdx) {
+  var range = sheet.getRange(rowIdx, 1, 1, 3);
+  sheet.setRowHeight(rowIdx, 32);
   range.setFontFamily("Segoe UI");
   range.setFontSize(10);
   range.setVerticalAlignment("middle");
@@ -193,54 +269,13 @@ function formatarLinha(sheet, rowIdx) {
     range.setBackground("#FFFFFF");
   }
 
-  range.setBorder(true, true, true, true, true, true, "#E2E8F0", SpreadsheetApp.BorderStyle.SOLID);
+  sheet.getRange(rowIdx, 1).setHorizontalAlignment("left").setFontWeight("normal").setFontColor("#0F172A");
+  sheet.getRange(rowIdx, 2).setHorizontalAlignment("left").setFontWeight("normal").setFontColor("#0F172A");
+  sheet.getRange(rowIdx, 3).setHorizontalAlignment("left").setFontColor("#2563EB");
 }
 
-// Corrige linhas antigas corrompidas (como o caso do "Não lidaSeu classificado...")
-function corrigirLinhasAntigas() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-
-  if (lastRow <= 1) return;
-
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0] || [];
-  var colMap = mapearColunas(headers);
-
-  var nomeCol = colMap.nome || 2;
-  var msgCol = colMap.mensagem || 4;
-  var prodCol = colMap.produto || 5;
-
-  for (var r = 2; r <= lastRow; r++) {
-    var nomeVal = String(sheet.getRange(r, nomeCol).getValue() || "");
-    var msgVal = String(sheet.getRange(r, msgCol).getValue() || "");
-    var prodVal = String(sheet.getRange(r, prodCol).getValue() || "");
-
-    var nomeLimpo = sanitizarNomeCliente(nomeVal, msgVal);
-    if (nomeLimpo !== nomeVal) {
-      sheet.getRange(r, nomeCol).setValue(nomeLimpo);
-    }
-
-    if (prodVal.toLowerCase().trim() === "marketplace") {
-      sheet.getRange(r, prodCol).setValue("Casa Disponível em PALHOÇA");
-    }
-  }
-
-  SpreadsheetApp.getUi().alert("✅ Pronto! Todas as linhas da planilha foram corrigidas e organizadas.");
-}
-
-function formatarTodaPlanilha() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  var lastRow = sheet.getLastRow();
-
-  if (lastRow === 0) {
-    criarCabecalhoEConfigurarColunas(sheet);
-    ajustarLarguras(sheet);
-    return;
-  }
-
-  corrigirLinhasAntigas();
-  ajustarLarguras(sheet);
+function ajustarLarguras3Colunas(sheet) {
+  sheet.setColumnWidth(1, 200); // Nome
+  sheet.setColumnWidth(2, 160); // Numero
+  sheet.setColumnWidth(3, 280); // Link Whatsapp
 }

@@ -1861,18 +1861,19 @@
     'não lida', 'nao lida', 'unread',
     'seu classificado', 'classificado', 'marketplace',
     'recebeu', 'visualizações', 'visualizacoes', 'mensagens', 'novas mensagens',
-    'bate-papo', 'bate papo', 'chat', 'conversa', 'inbox',
+    'bate-papo', 'bate papo', 'chat', 'conversa', 'conversas', 'inbox',
     'ativo há', 'ativo ha', 'online', 'offline', 'visto por último', 'visto por ultimo',
     'facebook', 'notificação', 'notificacao', 'notificações',
     'anúncio', 'anuncio', 'vendedor', 'comprador',
     'detalhes', 'classificados', 'enviar', 'responder', 'pesquisar',
     'produto', 'item', 'solicitação', 'solicitacao', 'grupo', 'comentário',
-    'novo classificado', 'publicado'
+    'novo classificado', 'publicado', 'verificação', 'verificacao', 'identidade',
+    'faça a verificação', 'faca a verificacao', 'cliente marketplace'
   ];
 
   function isValidCustomerName(name) {
     if (!name || typeof name !== 'string') return false;
-    const trimmed = name.trim();
+    const trimmed = name.trim().split(/\s*[·•|]\s*/)[0].trim();
     if (trimmed.length < 2 || trimmed.length > 35) return false;
     const lower = trimmed.toLowerCase();
     for (const junk of JUNK_NAME_KEYWORDS) {
@@ -1888,6 +1889,7 @@
   function cleanPersonName(name) {
     if (!name) return 'Cliente Marketplace';
     const clean = name.trim()
+      .split(/\s*[·•|]\s*/)[0]
       .replace(/^(?:bate-papo|conversa)\s+com\s+/i, '')
       .replace(/[:\-–—].*$/, '')
       .trim();
@@ -1929,28 +1931,49 @@
 
   // Scan current open chat for phone number and message context
   async function scanCurrentChatForPhone() {
-    // 1. Encontrar o nome real do participante no cabeçalho do chat
+    // 1. Encontrar o nome real do participante no cabeçalho do chat (restrito ao painel principal, nunca na barra lateral 'Conversas')
     let detectedName = '';
     const headerCandidates = document.querySelectorAll(`
       div[role="main"] header a[role="link"] span[dir="auto"],
       div[role="main"] header a[href*="/messages/"] span[dir="auto"],
       div[role="main"] header a[href*="/user/"] span,
       div[role="main"] header a[href*="/profile.php"] span,
-      header a[role="link"] span[dir="auto"],
-      header h1 span[dir="auto"],
-      header h2 span[dir="auto"],
+      div[role="main"] h1 span[dir="auto"],
+      div[role="main"] h2 span[dir="auto"],
       div[role="main"] header h1,
       div[role="main"] header h2,
       div[aria-label*="Bate-papo"] h2 span[dir="auto"],
-      div[role="main"] header span[dir="auto"]
+      div[aria-label*="Conversa com"] h2 span[dir="auto"],
+      div[role="main"] header span[dir="auto"],
+      a[href*="/messages/t/"][aria-current="page"] span[dir="auto"]
     `);
 
     for (const el of headerCandidates) {
-      const rawText = el.innerText?.trim()?.split('\n')[0] || '';
-      const cleaned = rawText.replace(/^(?:bate-papo|conversa)\s+com\s+/i, '').trim();
+      const rawLine = (el.innerText || '').trim().split('\n')[0] || '';
+      // Separa títulos de Marketplace no formato "Willian · Casa Disponível em PALHOÇA"
+      const firstPart = rawLine.split(/\s*[·•|]\s*/)[0] || '';
+      const cleaned = firstPart.replace(/^(?:bate-papo|conversa)\s+com\s+/i, '').trim();
       if (cleaned && isValidCustomerName(cleaned)) {
         detectedName = cleanPersonName(cleaned);
         break;
+      }
+    }
+
+    // Fallback: verificar item ativo da lista lateral correspondente à URL atual (/messages/t/ID)
+    if (!detectedName) {
+      const threadMatch = window.location.pathname.match(/\/messages\/t\/([^/?#]+)/);
+      if (threadMatch) {
+        const activeLink = document.querySelector(`a[href*="${threadMatch[1]}"]`);
+        if (activeLink) {
+          const lines = (activeLink.innerText || '').split('\n').map(l => l.trim()).filter(Boolean);
+          for (const line of lines) {
+            const candidate = line.split(/\s*[·•|]\s*/)[0].trim();
+            if (isValidCustomerName(candidate)) {
+              detectedName = cleanPersonName(candidate);
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -2357,22 +2380,19 @@
 
     // CSV format with UTF-8 BOM so Excel opens with proper accents and formatting
     const BOM = '\uFEFF';
-    let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link do Anúncio;Link WhatsApp;Data e Hora\n';
+    let csv = BOM + 'Nome;Numero;Link Whatsapp\n';
     
     leads.forEach(l => {
       let leadName = l.name;
       if (!isValidCustomerName(leadName)) {
         leadName = extractNameFromCustomerMessage(l.customerMessage) || 'Cliente Marketplace';
-      }
-      let prodName = l.product;
-      if (!isValidProductTitle(prodName)) {
-        prodName = 'Casa Disponível em PALHOÇA';
+      } else {
+        leadName = cleanPersonName(leadName);
       }
 
-      const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
-      const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
-      const adUrl = l.adLink || '';
-      csv += `"${leadName}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${prodName}";"${adUrl}";"${l.waLink}";"${dateFormatted}"\n`;
+      const numero = l.formattedPhone || l.phone || '';
+      const waLink = l.waLink || `https://wa.me/55${(l.phone || '').replace(/\D/g, '')}`;
+      csv += `"${leadName}";"${numero}";"${waLink}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

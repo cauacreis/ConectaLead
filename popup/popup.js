@@ -50,26 +50,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const JUNK_KEYWORDS = ['não lida', 'nao lida', 'seu classificado', 'classificado', 'recebeu', 'visualizações', 'mensagens'];
+    const JUNK_KEYWORDS = [
+      'não lida', 'nao lida', 'seu classificado', 'classificado', 'recebeu',
+      'visualizações', 'mensagens', 'conversas', 'conversa', 'verificação',
+      'verificacao', 'faça a verificação', 'cliente marketplace'
+    ];
     function cleanLeadName(name, msg) {
       if (!name || typeof name !== 'string') name = '';
-      const lower = name.toLowerCase().trim();
-      const isJunk = JUNK_KEYWORDS.some(j => lower.includes(j)) || /\d/.test(name) || lower.length < 2;
+      const firstPart = name.split(/\s*[·•|]\s*/)[0].trim();
+      const lower = firstPart.toLowerCase();
+      const isJunk = JUNK_KEYWORDS.some(j => lower.includes(j)) || /\d/.test(firstPart) || lower.length < 2;
       if (isJunk && msg) {
         const m = msg.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s*[:\-–—\s]+\(?\d{2}\)?/);
         if (m) return m[1].trim();
       }
-      return isJunk ? 'Cliente Marketplace' : name.trim();
+      return isJunk ? 'Cliente Marketplace' : firstPart;
     }
 
     const BOM = '\uFEFF';
-    let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link WhatsApp;Data e Hora\n';
+    let csv = BOM + 'Nome;Numero;Link Whatsapp\n';
     leads.forEach(l => {
       const cleanName = cleanLeadName(l.name, l.customerMessage);
-      const prodName = (!l.product || l.product.toLowerCase().trim() === 'marketplace') ? 'Casa Disponível em PALHOÇA' : l.product;
-      const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
-      const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
-      csv += `"${cleanName}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${prodName}";"${l.waLink}";"${dateFormatted}"\n`;
+      const numero = l.formattedPhone || l.phone || '';
+      const waLink = l.waLink || `https://wa.me/55${(l.phone || '').replace(/\D/g, '')}`;
+      csv += `"${cleanName}";"${numero}";"${waLink}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -91,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     testWebhookBtn.disabled = true;
-    testWebhookBtn.innerText = 'Enviando...';
+    testWebhookBtn.innerText = 'Conectando...';
 
     try {
       const resp = await chrome.runtime.sendMessage({
@@ -100,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       if (resp?.success) {
-        alert('✅ Conexão bem-sucedida! Uma linha de teste foi adicionada à sua Planilha Google.');
+        alert('✅ Conexão confirmada! A planilha está pronta com as colunas Nome, Numero e Link Whatsapp.');
       } else {
         alert('Falha ao conectar. Verifique se o URL foi gerado como "App da Web" com acesso para "Qualquer pessoa".');
       }

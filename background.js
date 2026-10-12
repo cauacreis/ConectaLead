@@ -355,12 +355,7 @@ async function handleTestSheetsWebhook(webhookUrl) {
   if (!webhookUrl) throw new Error('URL do Webhook não informada');
 
   const testPayload = {
-    nome: 'Teste de Integração (ConectaLead)',
-    whatsapp: '(11) 99999-8888',
-    mensagem: 'Mensagem de teste automático para verificar a planilha.',
-    produto: 'Item de Teste',
-    link_whatsapp: 'https://wa.me/5511999998888',
-    data: new Date().toLocaleString('pt-BR')
+    action: 'organize'
   };
 
   await fetch(webhookUrl, {
@@ -406,21 +401,25 @@ async function handleDeleteAdLink(idOrUrl) {
   const updated = adLinks.filter(a => a.id !== idOrUrl && a.url !== idOrUrl);
   await chrome.storage.local.set({ adLinks: updated });
   return true;
+}
+
 const JUNK_NAME_KEYWORDS = [
   'não lida', 'nao lida', 'unread',
   'seu classificado', 'classificado', 'marketplace',
   'recebeu', 'visualizações', 'visualizacoes', 'mensagens', 'novas mensagens',
-  'bate-papo', 'bate papo', 'chat', 'conversa', 'inbox',
+  'bate-papo', 'bate papo', 'chat', 'conversa', 'conversas', 'inbox',
   'ativo há', 'ativo ha', 'online', 'offline', 'visto por último', 'visto por ultimo',
   'facebook', 'notificação', 'notificacao', 'notificações',
   'anúncio', 'anuncio', 'vendedor', 'comprador',
   'detalhes', 'classificados', 'enviar', 'responder', 'pesquisar',
-  'produto', 'item', 'solicitação', 'solicitacao', 'grupo', 'comentário'
+  'produto', 'item', 'solicitação', 'solicitacao', 'grupo', 'comentário',
+  'novo classificado', 'publicado', 'verificação', 'verificacao', 'identidade',
+  'faça a verificação', 'faca a verificacao', 'cliente marketplace'
 ];
 
 function isValidCustomerName(name) {
   if (!name || typeof name !== 'string') return false;
-  const trimmed = name.trim();
+  const trimmed = name.trim().split(/\s*[·•|]\s*/)[0].trim();
   if (trimmed.length < 2 || trimmed.length > 35) return false;
   const lower = trimmed.toLowerCase();
   for (const junk of JUNK_NAME_KEYWORDS) {
@@ -434,6 +433,7 @@ function isValidCustomerName(name) {
 function cleanPersonName(name) {
   if (!name) return 'Cliente Marketplace';
   const clean = name.trim()
+    .split(/\s*[·•|]\s*/)[0]
     .replace(/^(?:bate-papo|conversa)\s+com\s+/i, '')
     .replace(/[:\-–—].*$/, '')
     .trim();
@@ -480,6 +480,12 @@ async function sanitizeExistingStoredLeads() {
         const fromMsg = extractNameFromCustomerMessage(l.customerMessage);
         l.name = fromMsg || 'Cliente Marketplace';
         changed = true;
+      } else {
+        const cleaned = cleanPersonName(l.name);
+        if (cleaned !== l.name) {
+          l.name = cleaned;
+          changed = true;
+        }
       }
       if (!isValidProductTitle(l.product)) {
         l.product = 'Casa Disponível em PALHOÇA';
@@ -490,6 +496,8 @@ async function sanitizeExistingStoredLeads() {
       if (!isValidCustomerName(processedPhones[k].name)) {
         processedPhones[k].name = 'Cliente Marketplace';
         changed = true;
+      } else {
+        processedPhones[k].name = cleanPersonName(processedPhones[k].name);
       }
       if (!isValidProductTitle(processedPhones[k].product)) {
         processedPhones[k].product = 'Casa Disponível em PALHOÇA';
@@ -578,7 +586,7 @@ async function handleSaveLead(leadData) {
     }).catch(err => console.warn('Erro ao registrar link de anúncio:', err));
   }
 
-  // Automatic real-time forwarding to Google Sheets
+  // Automatic real-time forwarding to Google Sheets (3 columns: Nome | Numero | Link Whatsapp)
   const cleanWebhook = (googleSheetsWebhook || '').trim();
   if (cleanWebhook && isNew) {
     try {
@@ -588,18 +596,15 @@ async function handleSaveLead(leadData) {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           nome: newLead.name,
+          numero: newLead.formattedPhone,
           whatsapp: newLead.formattedPhone,
+          link_whatsapp: newLead.waLink,
           mensagem: newLead.customerMessage,
           produto: newLead.product,
           link_anuncio: newLead.adLink || '',
-          link_whatsapp: newLead.waLink,
           data: new Date(newLead.timestamp).toLocaleString('pt-BR'),
-          // Campos duplicados em ingles/variacoes para compatibilidade universal com qualquer Apps Script
           name: newLead.name,
-          phone: newLead.formattedPhone,
-          product: newLead.product,
-          message: newLead.customerMessage,
-          date: new Date(newLead.timestamp).toLocaleString('pt-BR')
+          phone: newLead.formattedPhone
         })
       });
       console.log('[ConectaLead] Lead exportado automaticamente para o Google Sheets:', newLead.formattedPhone, newLead.name);
