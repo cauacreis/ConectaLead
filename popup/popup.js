@@ -50,12 +50,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const JUNK_KEYWORDS = ['não lida', 'nao lida', 'seu classificado', 'classificado', 'recebeu', 'visualizações', 'mensagens'];
+    function cleanLeadName(name, msg) {
+      if (!name || typeof name !== 'string') name = '';
+      const lower = name.toLowerCase().trim();
+      const isJunk = JUNK_KEYWORDS.some(j => lower.includes(j)) || /\d/.test(name) || lower.length < 2;
+      if (isJunk && msg) {
+        const m = msg.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s*[:\-–—\s]+\(?\d{2}\)?/);
+        if (m) return m[1].trim();
+      }
+      return isJunk ? 'Cliente Marketplace' : name.trim();
+    }
+
     const BOM = '\uFEFF';
     let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link WhatsApp;Data e Hora\n';
     leads.forEach(l => {
+      const cleanName = cleanLeadName(l.name, l.customerMessage);
+      const prodName = (!l.product || l.product.toLowerCase().trim() === 'marketplace') ? 'Casa Disponível em PALHOÇA' : l.product;
       const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
       const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
-      csv += `"${l.name}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${l.product}";"${l.waLink}";"${dateFormatted}"\n`;
+      csv += `"${cleanName}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${prodName}";"${l.waLink}";"${dateFormatted}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

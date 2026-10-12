@@ -33,7 +33,11 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (Object.keys(toSet).length > 0) {
     await chrome.storage.local.set(toSet);
   }
+  await sanitizeExistingStoredLeads();
 });
+
+// Higieniza leads existentes tambem no arranque normal do service worker
+sanitizeExistingStoredLeads().catch(() => {});
 
 // Update badge with leads count
 async function updateBadge() {
@@ -402,6 +406,103 @@ async function handleDeleteAdLink(idOrUrl) {
   const updated = adLinks.filter(a => a.id !== idOrUrl && a.url !== idOrUrl);
   await chrome.storage.local.set({ adLinks: updated });
   return true;
+const JUNK_NAME_KEYWORDS = [
+  'não lida', 'nao lida', 'unread',
+  'seu classificado', 'classificado', 'marketplace',
+  'recebeu', 'visualizações', 'visualizacoes', 'mensagens', 'novas mensagens',
+  'bate-papo', 'bate papo', 'chat', 'conversa', 'inbox',
+  'ativo há', 'ativo ha', 'online', 'offline', 'visto por último', 'visto por ultimo',
+  'facebook', 'notificação', 'notificacao', 'notificações',
+  'anúncio', 'anuncio', 'vendedor', 'comprador',
+  'detalhes', 'classificados', 'enviar', 'responder', 'pesquisar',
+  'produto', 'item', 'solicitação', 'solicitacao', 'grupo', 'comentário'
+];
+
+function isValidCustomerName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 35) return false;
+  const lower = trimmed.toLowerCase();
+  for (const junk of JUNK_NAME_KEYWORDS) {
+    if (lower.includes(junk)) return false;
+  }
+  if (/\d/.test(trimmed)) return false;
+  if (/^[^a-zA-ZÀ-ÿ]+$/.test(trimmed)) return false;
+  return true;
+}
+
+function cleanPersonName(name) {
+  if (!name) return 'Cliente Marketplace';
+  const clean = name.trim()
+    .replace(/^(?:bate-papo|conversa)\s+com\s+/i, '')
+    .replace(/[:\-–—].*$/, '')
+    .trim();
+  if (!isValidCustomerName(clean)) return 'Cliente Marketplace';
+  return clean.split(/\s+/).map(part => {
+    if (part.length === 0) return '';
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  }).join(' ');
+}
+
+function extractNameFromCustomerMessage(text) {
+  if (!text) return null;
+  const clean = text.trim();
+  const prefixMatch = clean.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s*[:\-–—]\s*(?:\(?\d{2}\)?|\d{2})/);
+  if (prefixMatch && isValidCustomerName(prefixMatch[1])) {
+    return cleanPersonName(prefixMatch[1]);
+  }
+  const spaceMatch = clean.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s+\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/);
+  if (spaceMatch && isValidCustomerName(spaceMatch[1])) {
+    return cleanPersonName(spaceMatch[1]);
+  }
+  const introMatch = clean.match(/(?:meu nome [eé]|sou [oa]|aqui [eé] [oa]|me chamo)\s+([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)/i);
+  if (introMatch && isValidCustomerName(introMatch[1])) {
+    return cleanPersonName(introMatch[1]);
+  }
+  return null;
+}
+
+function isValidProductTitle(title) {
+  if (!title || typeof title !== 'string') return false;
+  const lower = title.trim().toLowerCase();
+  if (lower.length < 4) return false;
+  if (['marketplace', 'facebook', 'bate-papo', 'mensagens', 'conversas', 'inbox', 'produto marketplace'].includes(lower)) return false;
+  if (lower.startsWith('não lida') || lower.startsWith('nao lida') || lower.startsWith('seu classificado')) return false;
+  return true;
+}
+
+async function sanitizeExistingStoredLeads() {
+  try {
+    const { leads = [], processedPhones = {} } = await chrome.storage.local.get(['leads', 'processedPhones']);
+    let changed = false;
+    leads.forEach(l => {
+      if (!isValidCustomerName(l.name)) {
+        const fromMsg = extractNameFromCustomerMessage(l.customerMessage);
+        l.name = fromMsg || 'Cliente Marketplace';
+        changed = true;
+      }
+      if (!isValidProductTitle(l.product)) {
+        l.product = 'Casa Disponível em PALHOÇA';
+        changed = true;
+      }
+    });
+    for (const k of Object.keys(processedPhones)) {
+      if (!isValidCustomerName(processedPhones[k].name)) {
+        processedPhones[k].name = 'Cliente Marketplace';
+        changed = true;
+      }
+      if (!isValidProductTitle(processedPhones[k].product)) {
+        processedPhones[k].product = 'Casa Disponível em PALHOÇA';
+        changed = true;
+      }
+    }
+    if (changed) {
+      await chrome.storage.local.set({ leads, processedPhones });
+      console.log('[ConectaLead] Leads legados sanitizados com sucesso!');
+    }
+  } catch (err) {
+    console.warn('Erro ao sanitizar leads existentes:', err);
+  }
 }
 
 async function handleSaveLead(leadData) {
@@ -410,16 +511,31 @@ async function handleSaveLead(leadData) {
   const cleanPhone = (leadData.phone || '').replace(/\D/g, '');
   if (!cleanPhone) throw new Error('Telefone inválido');
 
+  // Sanitiza nome com protecao absoluta contra strings de sistema do Facebook
+  let cleanName = leadData.name || '';
+  if (!isValidCustomerName(cleanName)) {
+    const fromMsg = extractNameFromCustomerMessage(leadData.customerMessage);
+    cleanName = fromMsg || 'Cliente Marketplace';
+  } else {
+    cleanName = cleanPersonName(cleanName);
+  }
+
+  // Sanitiza produto
+  let cleanProduct = leadData.product || '';
+  if (!isValidProductTitle(cleanProduct)) {
+    cleanProduct = 'Casa Disponível em PALHOÇA';
+  }
+
   const adLink = leadData.adLink || leadData.sourceUrl || '';
   const existingIndex = leads.findIndex(l => l.phone.replace(/\D/g, '') === cleanPhone);
 
   const newLead = {
     id: leadData.id || `lead_${Date.now()}`,
-    name: leadData.name || 'Cliente Marketplace',
+    name: cleanName,
     phone: cleanPhone,
     formattedPhone: leadData.formattedPhone || leadData.phone,
     customerMessage: leadData.customerMessage || '',
-    product: leadData.product || 'Produto Marketplace',
+    product: cleanProduct,
     adLink: adLink,
     waLink: `https://wa.me/55${cleanPhone}`,
     timestamp: leadData.timestamp || new Date().toISOString(),
@@ -431,8 +547,9 @@ async function handleSaveLead(leadData) {
     // Update existing lead if there is new message content
     leads[existingIndex] = {
       ...leads[existingIndex],
+      name: newLead.name !== 'Cliente Marketplace' ? newLead.name : (leads[existingIndex].name || newLead.name),
       customerMessage: newLead.customerMessage || leads[existingIndex].customerMessage,
-      product: newLead.product || leads[existingIndex].product,
+      product: newLead.product !== 'Casa Disponível em PALHOÇA' ? newLead.product : (leads[existingIndex].product || newLead.product),
       adLink: newLead.adLink || leads[existingIndex].adLink
     };
   } else {
@@ -476,10 +593,16 @@ async function handleSaveLead(leadData) {
           produto: newLead.product,
           link_anuncio: newLead.adLink || '',
           link_whatsapp: newLead.waLink,
-          data: new Date(newLead.timestamp).toLocaleString('pt-BR')
+          data: new Date(newLead.timestamp).toLocaleString('pt-BR'),
+          // Campos duplicados em ingles/variacoes para compatibilidade universal com qualquer Apps Script
+          name: newLead.name,
+          phone: newLead.formattedPhone,
+          product: newLead.product,
+          message: newLead.customerMessage,
+          date: new Date(newLead.timestamp).toLocaleString('pt-BR')
         })
       });
-      console.log('[ConectaLead] Lead exportado automaticamente para o Google Sheets:', newLead.formattedPhone);
+      console.log('[ConectaLead] Lead exportado automaticamente para o Google Sheets:', newLead.formattedPhone, newLead.name);
     } catch (webhookErr) {
       console.warn('Aviso: Não foi possível sincronizar com a planilha do Google:', webhookErr);
     }

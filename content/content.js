@@ -1856,23 +1856,134 @@
     if (customGroup) customGroup.style.display = 'none';
   }
 
+  // Lista de termos de interface/sistema do Facebook que NUNCA sao nomes de pessoas
+  const JUNK_NAME_KEYWORDS = [
+    'não lida', 'nao lida', 'unread',
+    'seu classificado', 'classificado', 'marketplace',
+    'recebeu', 'visualizações', 'visualizacoes', 'mensagens', 'novas mensagens',
+    'bate-papo', 'bate papo', 'chat', 'conversa', 'inbox',
+    'ativo há', 'ativo ha', 'online', 'offline', 'visto por último', 'visto por ultimo',
+    'facebook', 'notificação', 'notificacao', 'notificações',
+    'anúncio', 'anuncio', 'vendedor', 'comprador',
+    'detalhes', 'classificados', 'enviar', 'responder', 'pesquisar',
+    'produto', 'item', 'solicitação', 'solicitacao', 'grupo', 'comentário',
+    'novo classificado', 'publicado'
+  ];
+
+  function isValidCustomerName(name) {
+    if (!name || typeof name !== 'string') return false;
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 35) return false;
+    const lower = trimmed.toLowerCase();
+    for (const junk of JUNK_NAME_KEYWORDS) {
+      if (lower.includes(junk)) return false;
+    }
+    // Nomes de pessoas não contêm dígitos (ex: "recebeu 19")
+    if (/\d/.test(trimmed)) return false;
+    // Não deve ser URL ou pontuação
+    if (/^[^a-zA-ZÀ-ÿ]+$/.test(trimmed)) return false;
+    return true;
+  }
+
+  function cleanPersonName(name) {
+    if (!name) return 'Cliente Marketplace';
+    const clean = name.trim()
+      .replace(/^(?:bate-papo|conversa)\s+com\s+/i, '')
+      .replace(/[:\-–—].*$/, '')
+      .trim();
+    if (!isValidCustomerName(clean)) return 'Cliente Marketplace';
+    return clean.split(/\s+/).map(part => {
+      if (part.length === 0) return '';
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }).join(' ');
+  }
+
+  function extractNameFromCustomerMessage(text) {
+    if (!text) return null;
+    const clean = text.trim();
+    // Ex: "Orli: 48984442595", "Orli - (48) 98444-2595", "Orli 48984442595"
+    const prefixMatch = clean.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s*[:\-–—]\s*(?:\(?\d{2}\)?|\d{2})/);
+    if (prefixMatch && isValidCustomerName(prefixMatch[1])) {
+      return cleanPersonName(prefixMatch[1]);
+    }
+    const spaceMatch = clean.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)\s+\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}/);
+    if (spaceMatch && isValidCustomerName(spaceMatch[1])) {
+      return cleanPersonName(spaceMatch[1]);
+    }
+    // Ex: "Meu nome é Orli", "Sou o João"
+    const introMatch = clean.match(/(?:meu nome [eé]|sou [oa]|aqui [eé] [oa]|me chamo)\s+([A-Za-zÀ-ÖØ-öø-ÿ]{2,20}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,20})?)/i);
+    if (introMatch && isValidCustomerName(introMatch[1])) {
+      return cleanPersonName(introMatch[1]);
+    }
+    return null;
+  }
+
+  function isValidProductTitle(title) {
+    if (!title || typeof title !== 'string') return false;
+    const lower = title.trim().toLowerCase();
+    if (lower.length < 4) return false;
+    if (['marketplace', 'facebook', 'bate-papo', 'mensagens', 'conversas', 'inbox', 'produto marketplace'].includes(lower)) return false;
+    if (lower.startsWith('não lida') || lower.startsWith('nao lida') || lower.startsWith('seu classificado')) return false;
+    return true;
+  }
+
   // Scan current open chat for phone number and message context
   async function scanCurrentChatForPhone() {
-    // 1. Find participant name in chat header
-    let detectedName = 'Cliente Marketplace';
-    const headerEl = document.querySelector('header h1, header h2, div[role="main"] header span[dir="auto"], div[aria-label*="Bate-papo"] h2');
-    if (headerEl && headerEl.innerText.trim()) {
-      detectedName = headerEl.innerText.trim().split('\n')[0];
+    // 1. Encontrar o nome real do participante no cabeçalho do chat
+    let detectedName = '';
+    const headerCandidates = document.querySelectorAll(`
+      div[role="main"] header a[role="link"] span[dir="auto"],
+      div[role="main"] header a[href*="/messages/"] span[dir="auto"],
+      div[role="main"] header a[href*="/user/"] span,
+      div[role="main"] header a[href*="/profile.php"] span,
+      header a[role="link"] span[dir="auto"],
+      header h1 span[dir="auto"],
+      header h2 span[dir="auto"],
+      div[role="main"] header h1,
+      div[role="main"] header h2,
+      div[aria-label*="Bate-papo"] h2 span[dir="auto"],
+      div[role="main"] header span[dir="auto"]
+    `);
+
+    for (const el of headerCandidates) {
+      const rawText = el.innerText?.trim()?.split('\n')[0] || '';
+      const cleaned = rawText.replace(/^(?:bate-papo|conversa)\s+com\s+/i, '').trim();
+      if (cleaned && isValidCustomerName(cleaned)) {
+        detectedName = cleanPersonName(cleaned);
+        break;
+      }
     }
 
-    // 2. Find product in conversation banner if available
-    let detectedProduct = document.getElementById('cl-product-input')?.value || 'Produto Marketplace';
-    const bannerEl = document.querySelector('a[href*="/marketplace/item/"] span[dir="auto"], div[aria-label*="Marketplace"] h3');
-    if (bannerEl && bannerEl.innerText.trim()) {
-      detectedProduct = bannerEl.innerText.trim();
+    // 2. Encontrar o título real do produto/anúncio
+    let detectedProduct = '';
+    const productCandidates = document.querySelectorAll(`
+      a[href*="/marketplace/item/"] span[dir="auto"],
+      div[role="complementary"] h2,
+      div[role="complementary"] h3,
+      div[aria-label*="Detalhes do classificado"] span[dir="auto"],
+      div[aria-label*="Detalhes do anúncio"] span[dir="auto"],
+      div[aria-label*="Informações do anúncio"] span[dir="auto"]
+    `);
+    for (const pEl of productCandidates) {
+      const pText = pEl.innerText?.trim()?.split('\n')[0] || '';
+      if (isValidProductTitle(pText)) {
+        detectedProduct = pText;
+        break;
+      }
     }
 
-    // 2.1 Find ad link in conversation banner if available
+    if (!detectedProduct) {
+      const panelProd = document.getElementById('cl-product-input')?.value?.trim();
+      if (isValidProductTitle(panelProd)) {
+        detectedProduct = panelProd;
+      } else if (activePreset?.title) {
+        detectedProduct = activePreset.title;
+      } else {
+        detectedProduct = 'Casa Disponível em PALHOÇA';
+      }
+    }
+
+    // 2.1 Encontrar link do anúncio
     let detectedAdLink = '';
     const adAnchor = document.querySelector('a[href*="/marketplace/item/"]');
     if (adAnchor) {
@@ -1900,21 +2011,7 @@
       }).catch(() => {});
     }
 
-    const chatId = `${detectedName}_${detectedProduct}`;
-
-    // CHECK: Se este chat já foi marcado e exportado, PARA DE VERIFICAR ELE!
-    if (processedChatIds[chatId]) {
-      const savedPhone = processedChatIds[chatId];
-      const formatted = processedPhones[savedPhone]?.formatted || savedPhone;
-      showChatAlreadyProcessed(formatted, detectedName);
-      if (autoPilotTimer) {
-        clearTimeout(autoPilotTimer);
-        autoPilotTimer = null;
-      }
-      return;
-    }
-
-    // 3. Search message bubbles in Facebook Messenger
+    // 3. Buscar balões de mensagens no Facebook Messenger
     const messages = document.querySelectorAll('div[dir="auto"], span[dir="auto"]');
     let phoneFound = false;
 
@@ -1924,6 +2021,18 @@
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
           const cleanPhone = detected.phone.replace(/\D/g, '');
+
+          // Se a mensagem contém o nome do cliente (ex: "Orli: 48984442595"), prioriza o nome da mensagem!
+          const nameFromMsg = extractNameFromCustomerMessage(text);
+          if (nameFromMsg) {
+            detectedName = nameFromMsg;
+          }
+
+          if (!detectedName || !isValidCustomerName(detectedName)) {
+            detectedName = 'Cliente Marketplace';
+          }
+
+          const chatId = `${detectedName}_${detectedProduct}`;
 
           // Se esse número já foi processado antes, apenas associa o chat e encerra
           if (processedPhones[cleanPhone]) {
@@ -1963,6 +2072,11 @@
       }
     }
 
+    if (!detectedName || !isValidCustomerName(detectedName)) {
+      detectedName = 'Cliente Marketplace';
+    }
+    const chatId = `${detectedName}_${detectedProduct}`;
+
     // If no phone found in current conversation, reset to active reply mode
     if (!phoneFound) {
       resetChatToActiveMode();
@@ -1988,25 +2102,47 @@
     const listItems = document.querySelectorAll('div[role="navigation"] a[href*="/messages/t/"], div[role="grid"] div[role="row"]');
     for (const item of listItems) {
       const text = item.innerText || '';
-      if (text.length >= 8 && text.length <= 300) {
+      if (text.length >= 8 && text.length <= 400) {
         const detected = extractBrazilianPhone(text, defaultDdd);
         if (detected) {
           const cleanNum = detected.phone.replace(/\D/g, '');
           if (!processedPhones[cleanNum]) {
+            // Tenta extrair o nome do cliente da mensagem ou das linhas limpas
+            let leadName = extractNameFromCustomerMessage(text);
+            if (!leadName) {
+              const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+              for (const line of lines) {
+                if (isValidCustomerName(line)) {
+                  leadName = cleanPersonName(line);
+                  break;
+                }
+              }
+            }
+            if (!leadName || !isValidCustomerName(leadName)) {
+              leadName = 'Cliente Marketplace';
+            }
+
+            // Limpa a mensagem: extrai apenas a linha do telefone, descartando avisos de sistema
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+            const phoneLine = lines.find(l => l.includes(detected.raw) || l.includes(cleanNum)) || lines[lines.length - 1] || text.slice(0, 100);
+
+            let prodTitle = activePreset?.title || document.getElementById('cl-product-input')?.value || 'Casa Disponível em PALHOÇA';
+            if (!isValidProductTitle(prodTitle)) prodTitle = 'Casa Disponível em PALHOÇA';
+
             processedPhones[cleanNum] = {
               phone: cleanNum,
               formatted: detected.formatted,
-              name: 'Cliente Marketplace',
-              product: 'Marketplace',
+              name: leadName,
+              product: prodTitle,
               timestamp: new Date().toISOString()
             };
             chrome.storage.local.set({ processedPhones });
             saveLeadContact({
               phone: cleanNum,
               formatted: detected.formatted,
-              name: 'Cliente Marketplace',
-              product: 'Marketplace',
-              customerMessage: text.slice(0, 100)
+              name: leadName,
+              product: prodTitle,
+              customerMessage: phoneLine.trim()
             });
           }
         }
@@ -2178,11 +2314,16 @@
 
     container.innerHTML = '';
     leads.forEach(lead => {
+      let displayName = lead.name;
+      if (!isValidCustomerName(displayName)) {
+        displayName = extractNameFromCustomerMessage(lead.customerMessage) || 'Cliente Marketplace';
+      }
+
       const row = document.createElement('div');
       row.className = 'cl-lead-row';
       row.innerHTML = `
         <div class="cl-lead-info">
-          <div class="cl-lead-name">${escapeHtml(lead.name || 'Cliente')}</div>
+          <div class="cl-lead-name">${escapeHtml(displayName)}</div>
           <div class="cl-lead-phone">${escapeHtml(lead.formattedPhone || lead.phone)}</div>
           ${lead.customerMessage ? `<div style="font-size: 11px; color: #475569; font-style: italic; margin-top: 2px;">💬 "${escapeHtml(lead.customerMessage.slice(0, 75))}${lead.customerMessage.length > 75 ? '...' : ''}"</div>` : ''}
           ${lead.adLink ? `
@@ -2219,10 +2360,19 @@
     let csv = BOM + 'Nome;WhatsApp Formatado;Telefone Limpo;Mensagem do Cliente;Produto;Link do Anúncio;Link WhatsApp;Data e Hora\n';
     
     leads.forEach(l => {
+      let leadName = l.name;
+      if (!isValidCustomerName(leadName)) {
+        leadName = extractNameFromCustomerMessage(l.customerMessage) || 'Cliente Marketplace';
+      }
+      let prodName = l.product;
+      if (!isValidProductTitle(prodName)) {
+        prodName = 'Casa Disponível em PALHOÇA';
+      }
+
       const msg = (l.customerMessage || '').replace(/"/g, '""').replace(/\n/g, ' ');
       const dateFormatted = new Date(l.timestamp).toLocaleString('pt-BR');
       const adUrl = l.adLink || '';
-      csv += `"${l.name}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${l.product}";"${adUrl}";"${l.waLink}";"${dateFormatted}"\n`;
+      csv += `"${leadName}";"${l.formattedPhone}";"${l.phone}";"${msg}";"${prodName}";"${adUrl}";"${l.waLink}";"${dateFormatted}"\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
