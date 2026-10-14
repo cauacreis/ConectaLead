@@ -1,5 +1,5 @@
 // ConectaLead - Presets dos 15 Modelos de Casas (Palhoça, Pagani e Região - SC)
-// 3 Quartos, 2 Banheiros, Casas soltas no terreno, Sem Móveis
+// 3 Quartos, 2 Banheiros, Casas soltas no terreno, Modelos Variados de Descrição
 
 var BLANK_LINES = '\n'.repeat(100);
 
@@ -10,19 +10,17 @@ var SP_HOUSES_PRESETS = typeof SP_HOUSES_PRESETS !== 'undefined' ? SP_HOUSES_PRE
     price: '9000',
     location: 'Avenida Atílio Pedro Pagani, Pagani, Palhoça - SC, Brasil',
     folderName: '01_Casa_Palhoca_Pagani_3Q_2B',
-    description: `Casa Disponível em PALHOÇA no bairro Pagani.
+    description: `Casa disponível em Palhoça no bairro Pagani, ideal para quem busca espaço e tranquilidade.
 
-🏡 3 quartos amplos e bem arejados
-🚿 2 banheiros completos
-🐶 Casa totalmente solta no terreno, quintal privativo excelente para quem tem pets ou filhos pequenos.
-📄 Imóvel 100% documentado e regularizado.
-IPTU ✅ em dia
-💳 Aceita financiamento bancário e condições facilitadas no boleto.
-🔑 Entrada a partir de 9mil e parcelas que cabem no seu bolso a combinar.
+São 3 quartos arejados e 2 banheiros completos. O grande diferencial é que a casa fica totalmente solta no terreno (sem parede colada com vizinho), com um quintal privativo perfeito para quem tem pets ou filhos pequenos.
 
-Localização privilegiada no Pagani, pertinho de tudo. Chega de pagar aluguel para os outros!
-AGENDE SUA VISITA HOJE MESMO !${BLANK_LINES}
-"imagens ilustrativas"`
+• Imóvel 100% documentado e regularizado
+• IPTU ✅ em dia
+• Financiamento facilitado e opção de parcelamento no boleto
+• Entrada a partir de 9mil com parcelas negociáveis que cabem no seu bolso
+
+Localização privilegiada no Pagani, perto de comércio e serviços.
+Chega de pagar aluguel! Agende sua visita hoje mesmo.${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '02_Casa_Palhoca_Pedra_Branca_3Q_2B',
@@ -30,19 +28,21 @@ AGENDE SUA VISITA HOJE MESMO !${BLANK_LINES}
     price: '12000',
     location: 'Avenida Pedra Branca, Pedra Branca, Palhoça - SC, 88137-270, Brasil',
     folderName: '02_Casa_Palhoca_Pedra_Branca_3Q_2B',
-    description: `Excelente Casa em PALHOÇA no bairro planejado Pedra Branca.
+    description: `OPORTUNIDADE EM PALHOÇA — BAIRRO PEDRA BRANCA
 
-✨ 3 dormitórios confortáveis
-🛁 2 banheiros
-🐕 Terreno individual (casa totalmente solta), com pátio privativo para seus animais de estimação.
-📑 Toda documentação em ordem e aprovada.
-IPTU ✅
-💰 Opção de financiamento facilitado e parcelamento direto no boleto.
-🚀 Entrada a partir de 12mil com parcelas negociáveis.
+Configuração do Imóvel:
+- 3 dormitórios confortáveis
+- 2 banheiros
+- Terreno privativo com casa 100% solta (espaço livre e seguro para animais de estimação)
 
-Qualidade de vida, segurança e infraestrutura completa de lazer e comércio.
-SAIA DEFINITIVAMENTE DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Situação Financeira e Documental:
+- Documentação rigorosamente em ordem
+- IPTU ✅ em dia
+- Aprovada para financiamento bancário e condições no boleto
+- Entrada a partir de 12mil com parcelas sob medida
+
+More em uma das regiões mais valorizadas e planejadas de Palhoça.
+Saia definitivamente do aluguel. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '03_Casa_Palhoca_Passa_Vinte_3Q_2B',
@@ -50,19 +50,19 @@ SAIA DEFINITIVAMENTE DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     price: '10000',
     location: 'Passa Vinte, Palhoça - SC, Brasil',
     folderName: '03_Casa_Palhoca_Passa_Vinte_3Q_2B',
-    description: `Oportunidade de Casa Própria em PALHOÇA no Passa Vinte.
+    description: `Procurando casa com quintal amplo e privacidade em Palhoça?
 
-🛏️ 3 quartos espaçosos
-🚽 2 banheiros
-🐾 Imóvel totalmente descolado no terreno, amplo quintal para pets e área de lazer da família.
-📋 Documentação 100% regular.
-IPTU em dia ✅
-🤝 Financiamento bancário disponível e flexibilidade no boleto.
-⭐ Entrada a partir de 10mil com saldo parcelado a negociar.
+Essa residência no Passa Vinte é ideal para você:
+Conta com 3 quartos espaçosos, 2 banheiros e fica completamente descolada no terreno. Não é geminada, garantindo total liberdade para pets e momentos de lazer com a família.
 
-Perto do shopping, supermercados e fácil acesso para a BR-101.
-PARE DE QUEIMAR DINHEIRO COM ALUGUEL, AGENDE SUA VISITA AGORA !${BLANK_LINES}
-"imagens ilustrativas"`
+Dúvidas sobre documentação e pagamento?
+- Imóvel todo documentado e pronto para transferência
+- IPTU ✅ quitado
+- Liberado para financiamento bancário ou parcelamento no boleto
+- Entrada a partir de 10mil e saldo parcelado a combinar
+
+Perto do shopping e com acesso rápido para a BR-101.
+Pare de queimar dinheiro com aluguel. Agende sua visita agora!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '04_Casa_Palhoca_Ponte_Imaruim_3Q_2B',
@@ -70,19 +70,21 @@ PARE DE QUEIMAR DINHEIRO COM ALUGUEL, AGENDE SUA VISITA AGORA !${BLANK_LINES}
     price: '9000',
     location: 'Avenida Aniceto Zacchi, Ponte do Imaruim, Palhoça - SC, Brasil',
     folderName: '04_Casa_Palhoca_Ponte_Imaruim_3Q_2B',
-    description: `Casa Térrea Solta no Terreno em PALHOÇA na Ponte do Imaruim.
+    description: `Casa Térrea Disponível na Ponte do Imaruim (Palhoça)
 
-🏠 3 dormitórios
-🧼 2 banheiros
-🐕‍🦺 Casa não germinada (solta no terreno), perfeita para quem busca privacidade e espaço livre para animais.
-✅ Documentação completa e pronta para transferência.
-IPTU quitado ✅
-💵 Liberada para financiamento e plano facilitado via boleto.
-🎯 Entrada a partir de apenas 9mil e parcelas mensais a combinar.
+🏠 ESTRUTURA:
+• 3 dormitórios
+• 2 banheiros
+• Casa solta no lote: terreno individual com espaço de sobra para seus pets
+
+📑 CONDIÇÕES:
+• Documentação completa e regular
+• IPTU ✅ em dia
+• Aceita financiamento bancário e negociação no boleto
+• Entrada a partir de 9mil com parcelas mensais facilitadas
 
 Localização estratégica, a poucos minutos de São José e Florianópolis.
-O SEU NOVO LAR ESTÁ TE ESPERANDO, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+O seu novo lar está te esperando. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '05_Casa_Palhoca_Bela_Vista_3Q_2B',
@@ -90,19 +92,20 @@ O SEU NOVO LAR ESTÁ TE ESPERANDO, AGENDE SUA VISITA !${BLANK_LINES}
     price: '10000',
     location: 'Bela Vista, Palhoça - SC, Brasil',
     folderName: '05_Casa_Palhoca_Bela_Vista_3Q_2B',
-    description: `Linda Casa Familiar Disponível em PALHOÇA no Bela Vista.
+    description: `O lar que a sua família e seus animais de estimação merecem em Palhoça (Bela Vista).
 
-🌿 3 quartos bem iluminados
-🚿 2 banheiros
-🐕 Terreno individual e privativo, casa solta dos dois lados com ótimo quintal para seus pets brincarem.
-📁 Escritura e documentação em dia.
-IPTU ✅
-🏦 Condições facilitadas de financiamento e negociação no boleto.
-🏷️ Entrada a partir de 10mil com parcelas sob medida para você.
+Aqui você tem liberdade de verdade: casa completamente solta no terreno, com pátio privativo fechado onde seus pets podem brincar soltos e com segurança.
 
-Bairro tranquilo, rua residencial e vizinhança acolhedora.
-SUA CHANCE REAL DE SAIR DO ALUGUEL AINDA ESTE MÊS, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Detalhes da residência:
+- 3 quartos iluminados
+- 2 banheiros
+- Construção sólida e independente
+- Imóvel documentado, com IPTU ✅ pago
+- Facilidade de aprovação: financiamento bancário e saldo direto no boleto
+- Entrada a partir de 10mil com parcelas que se ajustam ao seu orçamento
+
+Rua calma e excelente vizinhança.
+Sua chance real de conquistar a casa própria e sair do aluguel. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '06_Casa_Palhoca_Aririu_3Q_2B',
@@ -110,19 +113,21 @@ SUA CHANCE REAL DE SAIR DO ALUGUEL AINDA ESTE MÊS, AGENDE SUA VISITA !${BLANK_L
     price: '9000',
     location: 'Aririú, Palhoça - SC, Brasil',
     folderName: '06_Casa_Palhoca_Aririu_3Q_2B',
-    description: `Casa Espaçosa Disponível em PALHOÇA no Aririú.
+    description: `Por que continuar pagando aluguel se você pode morar no que é seu em Palhoça?
 
-🌳 3 quartos
-🛁 2 banheiros
-🐶 Terreno amplo com casa 100% solta, muito espaço livre e segurança para quem cria animais domésticos.
-📑 Documentada de ponta a ponta.
-IPTU ✅
-📊 Financiamento habitacional disponível e saldo em boleto bancário negociável.
-🔑 Entrada a partir de 9mil e parcelamento facilitado.
+No Aririú, excelente casa térrea individual:
+- 3 quartos bem dimensionados
+- 2 banheiros
+- Terreno exclusivo com casa 100% solta (muito espaço ao ar livre para quem tem pets ou quer fazer horta/jardim)
 
-Tranquilidade, contato com a natureza e sossego para a sua família.
-NÃO PERCA TEMPO PAGANDO O QUE NÃO É SEU, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Tudo certinho e sem burocracia:
+- Documentação 100% regularizada
+- IPTU ✅ em dia
+- Disponível para financiamento habitacional e parcelamento no boleto
+- Entrada a partir de 9mil e parcelas a combinar
+
+Tranquilidade, sossego e contato com a natureza.
+Não adie o sonho da casa própria. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '07_Casa_Palhoca_Nova_Palhoca_3Q_2B',
@@ -130,19 +135,21 @@ NÃO PERCA TEMPO PAGANDO O QUE NÃO É SEU, AGENDE SUA VISITA !${BLANK_LINES}
     price: '11000',
     location: 'Nova Palhoça, Palhoça - SC, Brasil',
     folderName: '07_Casa_Palhoca_Nova_Palhoca_3Q_2B',
-    description: `Casa em Loteamento Planejado em PALHOÇA na Nova Palhoça.
+    description: `RESIDÊNCIA TÉRREA NA NOVA PALHOÇA — PALHOÇA/SC
 
-📐 3 dormitórios
-🚽 2 banheiros
-🐾 Imóvel totalmente independente no terreno, quintal livre para churrasco, crianças e pets.
-📜 Toda a documentação rigorosamente em dia.
-IPTU ✅
-💳 Financiamento acessível e possibilidade de parcelamento no boleto.
-💎 Entrada a partir de 11mil e parcelas que cabem no seu orçamento.
+Destaques principais:
+▪️ 3 dormitórios
+▪️ 2 banheiros
+▪️ Terreno privativo: imóvel totalmente solto, sem paredes compartilhadas, com ótimo quintal para pets e área gourmet
 
-Um dos bairros com maior valorização e crescimento de Palhoça.
-CONQUISTE O SEU IMÓVEL PRÓPRIO, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Vantagens de compra:
+▪️ Imóvel documentado e escriturado
+▪️ IPTU ✅
+▪️ Financiamento bancário acessível + opção flexível no boleto
+▪️ Entrada a partir de 11mil e parcelamento sob medida
+
+Loteamento moderno em constante valorização.
+Conquiste a chave do seu imóvel próprio e saia do aluguel. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '08_Casa_Palhoca_Madri_3Q_2B',
@@ -150,19 +157,18 @@ CONQUISTE O SEU IMÓVEL PRÓPRIO, AGENDE SUA VISITA !${BLANK_LINES}
     price: '10000',
     location: 'Madri, Palhoça - SC, Brasil',
     folderName: '08_Casa_Palhoca_Madri_3Q_2B',
-    description: `Casa Aconchegante em PALHOÇA no bairro Madri.
+    description: `Sua nova vida começa aqui: Casa aconchegante em Palhoça no bairro Madri.
 
-🛏️ 3 quartos
-🚿 2 banheiros
-🐩 Casa isolada no terreno (não geminada), com excelente pátio privativo para pets e lazer.
-📁 Documentação limpa e regular.
-IPTU ✅
-🏦 Facilidade para financiamento e opção de boleto bancário.
-🌟 Entrada a partir de 10mil e parcelas flexíveis a negociar.
+Espaço interno bem distribuído com 3 quartos e 2 banheiros, além de um quintal espaçoso com a casa totalmente solta no terreno. Perfeito para quem não abre mão de privacidade e quer conforto para seus bichinhos de estimação.
 
-Bairro completo com escolas, postos de saúde, praças e comércio variado.
-DÊ O PRIMEIRO PASSO PARA A SUA CASA PRÓPRIA, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Condições comerciais imperdíveis:
+• Documentação em dia e regular
+• IPTU ✅ quitado
+• Aceita financiamento bancário e plano facilitado no boleto
+• Entrada inicial a partir de 10mil e saldo em parcelas a negociar
+
+Bairro com comércio completo, escolas e transporte fácil.
+Dê o primeiro passo para sair do aluguel. Agende já sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '09_Casa_Palhoca_Sao_Sebastiao_3Q_2B',
@@ -170,19 +176,20 @@ DÊ O PRIMEIRO PASSO PARA A SUA CASA PRÓPRIA, AGENDE SUA VISITA !${BLANK_LINES}
     price: '9000',
     location: 'São Sebastião, Palhoça - SC, Brasil',
     folderName: '09_Casa_Palhoca_Sao_Sebastiao_3Q_2B',
-    description: `Excelente Oportunidade em PALHOÇA no São Sebastião.
+    description: `Casa disponível em Palhoça (São Sebastião)
 
-🏠 3 quartos arejados
-🧼 2 banheiros
-🐕‍🦺 Casa solta no lote, garantindo privacidade total e área livre para quem tem animais de estimação.
-✅ Imóvel documentado e regularizado.
-IPTU ✅
-💵 Financiamento descomplicado e saldo negociável no boleto.
-⚡ Entrada a partir de apenas 9mil e parcelas a negociar direto.
+Resumo do imóvel:
+- 3 quartos
+- 2 banheiros
+- Casa solta no lote (terreno privativo amplo, ideal para pets)
+- Toda documentada
+- IPTU ✅ em dia
+- Entrada a partir de 9mil
+- Parcelas flexíveis a negociar
+- Aceita financiamento e boleto bancário
 
-Acesso rápido às principais vias e excelente custo-benefício.
-LIVRE-SE DO ALUGUEL DE UMA VEZ POR TODAS, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Excelente custo-benefício e fácil acesso aos bairros vizinhos.
+Pare de pagar aluguel para terceiros. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '10_Casa_Palhoca_Jardim_Eldorado_3Q_2B',
@@ -190,19 +197,20 @@ LIVRE-SE DO ALUGUEL DE UMA VEZ POR TODAS, AGENDE SUA VISITA !${BLANK_LINES}
     price: '11000',
     location: 'Jardim Eldorado, Palhoça - SC, Brasil',
     folderName: '10_Casa_Palhoca_Jardim_Eldorado_3Q_2B',
-    description: `Casa Própria Disponível em PALHOÇA no Jardim Eldorado.
+    description: `Excelente oportunidade de moradia no Jardim Eldorado em Palhoça!
 
-🌟 3 quartos confortáveis
-🛁 2 banheiros
-🐾 Terreno privativo com casa completamente solta, ideal para a liberdade dos seus pets.
-📋 Documentação 100% pronta para transferência.
-IPTU em dia ✅
-💳 Disponível para financiamento habitacional e parcelamento no boleto.
-🔑 Entrada a partir de 11mil com condições personalizadas de parcelas.
+Se você procura uma casa independente, essa é a escolha certa:
+Imóvel totalmente solto no terreno, garantindo privacidade completa para sua família e um pátio generoso para seus pets.
+São 3 quartos confortáveis e 2 banheiros completos.
 
-Bairro muito bem localizado, pertinho do centro da cidade e da universidade.
-SUA FAMÍLIA MERECE ESSA CONQUISTA, AGENDE SUA VISITA AGORA !${BLANK_LINES}
-"imagens ilustrativas"`
+Facilidades para fechar negócio:
+1. Imóvel 100% documentado
+2. IPTU ✅ em dia
+3. Financiamento liberado e opções no boleto bancário
+4. Entrada a partir de 11mil com parcelas negociáveis
+
+Próximo ao centro, faculdades e comércios da região.
+Sua família merece morar no que é próprio. Agende sua visita hoje mesmo!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '11_Casa_Palhoca_Barra_Aririu_3Q_2B',
@@ -210,19 +218,19 @@ SUA FAMÍLIA MERECE ESSA CONQUISTA, AGENDE SUA VISITA AGORA !${BLANK_LINES}
     price: '10000',
     location: 'Barra do Aririú, Palhoça - SC, Brasil',
     folderName: '11_Casa_Palhoca_Barra_Aririu_3Q_2B',
-    description: `Casa Ampla e Tranquila em PALHOÇA na Barra do Aririú.
+    description: `Casa espaçosa e arejada na Barra do Aririú (Palhoça).
 
-🌊 3 dormitórios
-🚽 2 banheiros
-🐶 Casa totalmente solta no terreno, com pátio espaçoso e muito verde para animais e momentos em família.
-📄 Imóvel regularizado e documentado.
-IPTU ✅
-🤝 Aceitamos financiamento bancário e negociação facilitada no boleto.
-🎯 Entrada a partir de 10mil com saldo parcelado a combinar.
+Para quem busca paz e espaço de verdade:
+• 3 dormitórios
+• 2 banheiros
+• Terreno individual com casa 100% solta (muita área verde e quintal livre para pets)
+• Documentação regular e pronta para transferência
+• IPTU ✅ em dia
+• Entrada a partir de 10mil com parcelamento flexível no boleto
+• Financiamento bancário disponível
 
-Paz, segurança e a brisa do litoral para você viver com qualidade.
-PARE DE ALUGAR E VENHA MORAR NO QUE É SEU, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Aproveite o clima tranquilo da região da Barra para viver com mais qualidade.
+Livre-se do aluguel de uma vez por todas. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '12_Casa_Palhoca_Praia_de_Fora_3Q_2B',
@@ -230,19 +238,21 @@ PARE DE ALUGAR E VENHA MORAR NO QUE É SEU, AGENDE SUA VISITA !${BLANK_LINES}
     price: '12000',
     location: 'Praia de Fora, Palhoça - SC, Brasil',
     folderName: '12_Casa_Palhoca_Praia_de_Fora_3Q_2B',
-    description: `More Perto do Mar em PALHOÇA na Praia de Fora.
+    description: `More perto da praia com espaço e conforto em Palhoça (Praia de Fora).
 
-🏖️ 3 quartos espaçosos
-🚿 2 banheiros
-🐕 Terreno privativo com casa solta dos lados, quintal amplo para pets e área gourmet.
-📜 Imóvel documentado e pronto para morar.
-IPTU ✅
-💰 Liberada para financiamento e pagamento facilitado no boleto bancário.
-🚀 Entrada a partir de 12mil e parcelas a negociar.
+Casa térrea independente, completamente solta no terreno:
+Conta com quintal privativo excelente para quem tem animais domésticos, quer montar churrasqueira ou ter espaço para as crianças.
 
-Desfrute da tranquilidade do litoral de Santa Catarina com conforto e economia.
-CHEGA DE PAGAR ALUGUEL CARO, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Composição:
+- 3 quartos amplos
+- 2 banheiros
+- Imóvel com documentação regular
+- IPTU ✅
+- Financiamento bancário facilitado e negociação no boleto
+- Entrada a partir de 12mil com parcelas sob consulta
+
+Viva a tranquilidade do litoral catarinense com economia.
+Chega de pagar aluguel caro. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '13_Casa_Palhoca_Pagani_2_3Q_2B',
@@ -250,19 +260,21 @@ CHEGA DE PAGAR ALUGUEL CARO, AGENDE SUA VISITA !${BLANK_LINES}
     price: '11000',
     location: 'Avenida Atílio Pedro Pagani, Pagani, Palhoça - SC, Brasil',
     folderName: '13_Casa_Palhoca_Pagani_2_3Q_2B',
-    description: `Destaque em PALHOÇA: Casa Exclusiva no Pagani.
+    description: `Destaque em Palhoça: Casa no Pagani com terreno individual.
 
-🏡 3 quartos grandes
-🧼 2 banheiros modernos
-🐾 Casa solta no terreno, privacidade total e excelente espaço externo para quem tem bichinhos de estimação.
-📑 Toda documentação aprovada.
-IPTU ✅
-🏦 Condições especiais de financiamento e parcelamento flexível no boleto.
-💎 Entrada a partir de 11mil e parcelas sob medida para a sua renda.
+Diferenciais da residência:
+▪ 3 quartos grandes e iluminados
+▪ 2 banheiros modernos
+▪ Casa totalmente solta no terreno, com recuo em todas as laterais e quintal seguro para quem tem pets
 
-Bairro de alto padrão com prefeitura, fórum e shopping a poucos passos.
-A OPORTUNIDADE PERFEITA PARA O SEU IMÓVEL PRÓPRIO, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Facilidades de aquisição:
+▪ Imóvel documentado e regularizado
+▪ IPTU ✅ em dia
+▪ Liberada para financiamento habitacional e boleto parcelado
+▪ Entrada a partir de 11mil e parcelas personalizadas de acordo com a sua renda
+
+Bairro com infraestrutura completa: shopping, prefeitura e serviços essenciais a minutos de distância.
+Sua oportunidade para sair do aluguel em alto estilo. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '14_Casa_Sao_Jose_Barreiros_3Q_2B',
@@ -270,19 +282,21 @@ A OPORTUNIDADE PERFEITA PARA O SEU IMÓVEL PRÓPRIO, AGENDE SUA VISITA !${BLANK_
     price: '10000',
     location: 'Avenida Leoberto Leal, Barreiros, São José - SC, Brasil',
     folderName: '14_Casa_Sao_Jose_Barreiros_3Q_2B',
-    description: `Casa Térrea Disponível em SÃO JOSÉ no Barreiros.
+    description: `Casa térrea individual em São José no bairro Barreiros.
 
-📍 3 dormitórios
-🛁 2 banheiros
-🐕 Imóvel individual e solto no terreno, pátio fechado ideal para pets e segurança das crianças.
-✅ Documentação 100% em dia.
-IPTU ✅
-💳 Financiamento bancário facilitado e plano flexível no boleto.
-⭐ Entrada a partir de 10mil e parcelas negociáveis direto.
+Localização excelente, pertinho de tudo e com o espaço que um apartamento não oferece:
+Casa totalmente solta no terreno, sem divisão de paredes, com pátio privativo para quem tem pets e quer liberdade.
 
-Localização nobre em São José, pertinho da divisa com Florianópolis e colégios.
-NÃO JOGUE MAIS DINHEIRO FORA COM ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
-"imagens ilustrativas"`
+Informações gerais:
+• 3 dormitórios
+• 2 banheiros
+• Documentação 100% aprovada
+• IPTU ✅ em dia
+• Condições facilitadas no boleto e financiamento bancário
+• Entrada a partir de 10mil com saldo parcelado direto
+
+A poucos minutos da divisa com Florianópolis.
+Não jogue mais dinheiro fora com aluguel. Agende sua visita com a gente!${BLANK_LINES}\n"imagens ilustrativas"`
   },
   {
     id: '15_Casa_Sao_Jose_Forquilhinhas_3Q_2B',
@@ -290,18 +304,18 @@ NÃO JOGUE MAIS DINHEIRO FORA COM ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}
     price: '12000',
     location: 'Forquilhinhas, São José - SC, Brasil',
     folderName: '15_Casa_Sao_Jose_Forquilhinhas_3Q_2B',
-    description: `Excelente Casa em SÃO JOSÉ no Forquilhinhas.
+    description: `Casa própria em São José no bairro Forquilhinhas.
 
-🏙️ 3 quartos amplos
-🚿 2 banheiros
-🐶 Casa completamente solta no terreno, quintal privativo e espaço de sobra para seus pets.
-📋 Documentação impecável e pronta para transferência.
-IPTU ✅
-🤝 Disponível para financiamento habitacional e parcelamento no boleto.
-🔑 Entrada a partir de 12mil com parcelas a negociar.
+Tudo o que sua família precisa em uma casa térrea:
+- 3 quartos espaçosos
+- 2 banheiros
+- Construção totalmente descolada no terreno (quintal privativo e livre para pets)
+- Documentação impecável
+- IPTU ✅ em dia
+- Entrada a partir de 12mil e parcelas a negociar
+- Aceita financiamento bancário e saldo no boleto
 
-Bairro completo, comércio forte em volta, bancos, mercados e transporte fácil.
-CONQUISTE SUA INDEPENDÊNCIA E SAIA DO ALUGUEL, AGENDE SUA VISITA JÁ !${BLANK_LINES}
-"imagens ilustrativas"`
+Bairro tradicional com comércio forte, escolas e fácil mobilidade.
+Conquiste a sua independência e saia do aluguel hoje mesmo. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
   }
 ];

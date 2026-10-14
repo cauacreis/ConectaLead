@@ -1467,6 +1467,25 @@
     return false;
   }
 
+  function buildVariedHouseDescription(title = 'Casa Disponível', price = '9000', location = 'Palhoça - SC') {
+    const cleanPrice = String(price || '9000').replace(/\D/g, '') || '9000';
+    const cleanPriceThousand = cleanPrice.length >= 4 ? `${Math.round(Number(cleanPrice) / 1000)}mil` : `${cleanPrice}mil`;
+    const locShort = (location || 'Palhoça').split(',')[0].trim() || 'Palhoça';
+
+    const templates = [
+      `Casa disponível em ${locShort}, ideal para quem busca espaço e tranquilidade.\n\nSão 3 quartos arejados e 2 banheiros completos. A casa fica totalmente solta no terreno (sem paredes coladas), com quintal privativo excelente para quem tem pets ou filhos pequenos.\n\n• Imóvel 100% documentado e regularizado\n• IPTU ✅ em dia\n• Financiamento facilitado e opção de parcelamento no boleto\n• Entrada a partir de ${cleanPriceThousand} com parcelas a negociar\n\nChega de pagar aluguel! Agende sua visita hoje mesmo!${BLANK_LINES}\n"imagens ilustrativas"`,
+
+      `OPORTUNIDADE DE CASA PRÓPRIA — ${title.toUpperCase()}\n\nConfiguração do Imóvel:\n- 3 dormitórios confortáveis\n- 2 banheiros\n- Terreno privativo com casa 100% solta (espaço livre e seguro para pets)\n\nCondições:\n- Documentação rigorosamente em dia\n- IPTU ✅ quitado\n- Aprovada para financiamento bancário e condições no boleto\n- Entrada a partir de ${cleanPriceThousand} com parcelas sob medida\n\nSaia definitivamente do aluguel. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`,
+
+      `Procurando casa com quintal amplo e privacidade em ${locShort}?\n\nEssa residência conta com 3 quartos espaçosos, 2 banheiros e fica completamente descolada no terreno. Não é geminada, garantindo total liberdade para pets e momentos de lazer da família.\n\n- Imóvel todo documentado e pronto para transferência\n- IPTU ✅ em dia\n- Liberado para financiamento bancário ou parcelamento no boleto\n- Entrada a partir de ${cleanPriceThousand} e saldo parcelado a combinar\n\nPare de queimar dinheiro com aluguel. Agende sua visita agora!${BLANK_LINES}\n"imagens ilustrativas"`,
+
+      `Casa Térrea com Quintal Exclusivo em ${locShort}\n\n🏠 ESTRUTURA:\n• 3 dormitórios\n• 2 banheiros\n• Terreno individual (casa solta no lote com espaço de sobra para seus pets)\n\n📑 CONDIÇÕES:\n• Documentação completa e regular\n• IPTU ✅ em dia\n• Aceita financiamento bancário e negociação no boleto\n• Entrada a partir de ${cleanPriceThousand} e parcelas mensais facilitadas\n\nO seu novo lar está te esperando. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
+    ];
+
+    const idx = Math.floor(Math.random() * templates.length);
+    return templates[idx];
+  }
+
   async function handleFillAd() {
     const product = document.getElementById('cl-product-input').value.trim();
     const price = document.getElementById('cl-price-input').value.trim();
@@ -1507,9 +1526,9 @@
           }
         } catch (_) {}
 
-        // Fallback completo obrigatório para casas: 3 quartos, 2 banheiros, 50 linhas em branco e "imagens ilustrativas"
+        // Fallback dinâmico com modelos variados de descrição (3 quartos, 2 banheiros, solta no terreno/pets, doc, IPTU em dia, financiamento/boleto, entrada e 100 quebras de linha)
         if (!finalDescription || finalDescription.trim().length < 20) {
-          finalDescription = `${product}.\n\n3 quartos \n2 banheiros \nCasa completamente solta no terreno, com ótimo espaço para quem tem pets. \nCasa documentada.\nIPTU ✅ \nDisponível para financiamento e boleto\nEntrada A partir de ${price ? price : '9'}mil e parcelas a negociar. \n\nSUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}\n"imagens ilustrativas"`;
+          finalDescription = buildVariedHouseDescription(finalTitle || product, price, location);
         }
       }
 
@@ -1687,10 +1706,10 @@
       await sleep(400);
     }
 
-    // 7. Descrição do imóvel (Com 50 quebras de linha e "imagens ilustrativas")
+    // 7. Descrição do imóvel (Com modelos variados, 100 quebras de linha e "imagens ilustrativas")
     let descToFill = description;
     if (!descToFill || descToFill.trim().length === 0) {
-      descToFill = `${title || 'Casa'}.\n\n3 quartos \n2 banheiros \nCasa completamente solta no terreno, com ótimo espaço para quem tem pets. \nCasa documentada.\nIPTU ✅ \nDisponível para financiamento e boleto\nEntrada A partir de ${price || '9'}mil e parcelas a negociar. \n\nSUA OPORTUNIDADE PARA SAIR DO ALUGUEL, AGENDE SUA VISITA !${BLANK_LINES}\n"imagens ilustrativas"`;
+      descToFill = buildVariedHouseDescription(title || 'Casa', price || '9000', location || 'Palhoça - SC');
     }
 
     try {
