@@ -1,5 +1,5 @@
-// ConectaLead - Presets dos 15 Modelos de Casas (Palhoça, Pagani e Região - SC)
-// 3 Quartos, 2 Banheiros, Casas soltas no terreno, Oportunidade Real nos Titulos
+// ConectaLead - Presets dos 16 Modelos de Casas (Palhoça, Biguaçu Deltaville, São José e Região - SC)
+// 3 Quartos (ou 2 Quartos no Deltaville), 2 Banheiros, Casas soltas/modernas, Oportunidade Real nos Titulos
 
 var BLANK_LINES = '\n'.repeat(6);
 
@@ -323,6 +323,8 @@ Conquiste a sua independência e saia do aluguel hoje mesmo. Agende sua visita!$
     price: '18000',
     location: 'Deltaville, Biguaçu - SC, Brasil',
     folderName: '16_Casa_Deltaville_Compacta_2Q',
+    bedrooms: '2',
+    bathrooms: '2',
     description: `Oportunidade real de morar com padrão de condomínio fechado no Bairro Planejado Deltaville.
 
 Para quem busca segurança, sofisticação e qualidade de vida sem precisar de uma entrada exorbitante: residência compacta, moderna e com acabamento refinado em uma das regiões mais desejadas da Grande Florianópolis.
