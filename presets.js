@@ -316,5 +316,37 @@ Tudo o que sua família precisa em uma casa térrea:
 
 Bairro tradicional com comércio forte, escolas e fácil mobilidade.
 Conquiste a sua independência e saia do aluguel hoje mesmo. Agende sua visita!${BLANK_LINES}\n"imagens ilustrativas"`
+  },
+  {
+    id: '16_Casa_Deltaville_Compacta_2Q',
+    title: 'Oportunidade Real: Casa Moderna no Deltaville (Estilo Condomínio Fechado)',
+    price: '18000',
+    location: 'Deltaville, Biguaçu - SC, Brasil',
+    folderName: '16_Casa_Deltaville_Compacta_2Q',
+    description: `Oportunidade real de morar com padrão de condomínio fechado no Bairro Planejado Deltaville.
+
+Para quem busca segurança, sofisticação e qualidade de vida sem precisar de uma entrada exorbitante: residência compacta, moderna e com acabamento refinado em uma das regiões mais desejadas da Grande Florianópolis.
+
+Destaques do Imóvel:
+• Arquitetura contemporânea com platibanda e fachada imponente
+• 2 dormitórios aconchegantes e iluminados
+• Sala de estar e cozinha integradas em conceito aberto
+• Piso em porcelanato e detalhes em iluminação moderna
+• Quintal privativo nos fundos com espaço para churrasco e pets
+• Vaga de garagem privativa
+
+Estrutura do Bairro Planejado Deltaville:
+• Segurança e monitoramento com guarita
+• Ruas arborizadas, ciclovias e praças temáticas
+• Pistas de caminhada, lago central e áreas esportivas
+• Vizinhança tranquila com excelente padrão de vizinhança
+
+Condições Facilitadas:
+• Imóvel 100% regularizado e pronto para transferência
+• IPTU ✅ em dia
+• Entrada a partir de 18 mil com parcelas que cabem no seu orçamento
+• Financiamento bancário facilitado ou opção no boleto
+
+Agende sua visita e conheça essa oportunidade de sair do aluguel direto para o melhor bairro planejado da região!${BLANK_LINES}\n"imagens ilustrativas"`
   }
 ];

@@ -34,37 +34,30 @@ FACADES_MAP = {
     "15_Casa_Sao_Jose_Forquilhinhas_3Q_2B": MODELOS_DIR / "15_Casa_Sao_Jose_Forquilhinhas_3Q_2B" / "01_fachada.jpg",
 }
 
-# Pool de Banheiros Simples
+# Pool de Banheiros 100% LIMPOS e IMPECAVEIS (azulejos brancos, loucas limpas, box transparente, sem mofo)
 BATHROOMS_POOL = [
-    BRAIN_DIR / "banheiro_simples_palhoca_1792179483157.jpg",
-    BRAIN_DIR / "banheiro_popular_brasileiro_1792179589289.jpg",
-    BRAIN_DIR / "banheiro_simples_residencial_1792179586223.jpg",
-    BRAIN_DIR / "banheiro_simples_1791472448513.jpg",
-    BRAIN_DIR / "banheiro_simples_02_1791472657166.jpg"
+    BRAIN_DIR / "banheiro_impecavel_reformado_1792421817866.jpg",
+    BRAIN_DIR / "banheiro_residencial_limpo_png_1792422889572.jpg"
 ]
 
-# Pool de Cozinhas Simples
+# Pool de Cozinhas 100% LIMPAS e CLARAS (azulejo branco brilhando, pia inox polida, armarios novos)
 KITCHENS_POOL = [
-    BRAIN_DIR / "cozinha_casa_popular_1792179590175.jpg",
-    BRAIN_DIR / "cozinha_casa_brasileira_simples_1792179672813.jpg",
-    BRAIN_DIR / "cozinha_vazia_simples_1791472604621.jpg"
+    BRAIN_DIR / "cozinha_limpa_anuncio_imobiliario_1792422131027.jpg",
+    BRAIN_DIR / "cozinha_casa_brasileira_simples_1792179672813.jpg"
 ]
 
-# Pool de Salas Simples
+# Pool de Salas 100% LIMPAS e AREJADAS (porcelanato espelhado brilhante, paredes brancas novas, muita luz)
 LIVING_ROOMS_POOL = [
-    BRAIN_DIR / "sala_simples_palhoca_1792179584505.jpg",
-    BRAIN_DIR / "sala_estar_casa_popular_1792179673492.jpg",
-    BRAIN_DIR / "sala_vazia_palhoca_01_1791768434030.jpg",
-    BRAIN_DIR / "sala_vazia_simples_1791472415843.jpg"
+    BRAIN_DIR / "sala_vazia_limpa_1792422130132.jpg",
+    BRAIN_DIR / "sala_estar_casa_popular_1792179673492.jpg"
 ]
 
-# Pool de Quartos Simples
+# Pool de Quartos 100% LIMPOS e AREJADOS (recem-pintados, pisos brilhantes sem po, amplos e iluminados)
 BEDROOMS_POOL = [
-    BRAIN_DIR / "quarto_vazio_popular_1792179601012.jpg",
-    BRAIN_DIR / "quarto_casal_vazio_popular_1792179672881.jpg",
-    BRAIN_DIR / "quarto_vazio_simples_1791472165312.jpg",
-    BRAIN_DIR / "quarto_vazio_02_1791472489604.jpg",
-    BRAIN_DIR / "quarto_vazio_03_1791472534273.jpg"
+    BRAIN_DIR / "quarto_vazio_limpo_1792422131053.jpg",
+    BRAIN_DIR / "quarto_vazio_reformado_1792422144449.jpg",
+    BRAIN_DIR / "quarto_solteiro_vazio_limpo_1792423207909.jpg",
+    BRAIN_DIR / "quarto_casal_vazio_popular_1792179672881.jpg"
 ]
 
 HOUSE_FOLDERS = sorted(list(FACADES_MAP.keys()))
@@ -125,20 +118,20 @@ def main():
         q1_src = BEDROOMS_POOL[house_idx % len(BEDROOMS_POOL)]
         process_and_save_unique_photo(q1_src, folder_path / "03_quarto_01.jpg", house_idx, 3)
 
-        # 4. Quarto 02 (Solteiro)
+        # 4. Quarto 02 (Solteiro - diferente de q1)
         q2_src = BEDROOMS_POOL[(house_idx + 1) % len(BEDROOMS_POOL)]
         process_and_save_unique_photo(q2_src, folder_path / "04_quarto_02.jpg", house_idx, 4)
 
-        # 5. Quarto 03 (Infantil/Visitas)
-        q3_src = BEDROOMS_POOL[(house_idx + 3) % len(BEDROOMS_POOL)]
+        # 5. Quarto 03 (Infantil/Office - diferente de q1 e q2)
+        q3_src = BEDROOMS_POOL[(house_idx + 2) % len(BEDROOMS_POOL)]
         process_and_save_unique_photo(q3_src, folder_path / "05_quarto_03.jpg", house_idx, 5)
 
         # 6. Banheiro 01 (Social / Principal)
         b1_src = BATHROOMS_POOL[house_idx % len(BATHROOMS_POOL)]
         process_and_save_unique_photo(b1_src, folder_path / "06_banheiro_01.jpg", house_idx, 6)
 
-        # 7. Banheiro 02 (Suite / Lavabo - DIFERENTE do Banheiro 01)
-        b2_src = BATHROOMS_POOL[(house_idx + 2) % len(BATHROOMS_POOL)]
+        # 7. Banheiro 02 (Suite / Secundario - 100% DIFERENTE do Banheiro 01)
+        b2_src = BATHROOMS_POOL[(house_idx + 1) % len(BATHROOMS_POOL)]
         process_and_save_unique_photo(b2_src, folder_path / "07_banheiro_02.jpg", house_idx, 7)
 
         # 8. Cozinha Vazia
