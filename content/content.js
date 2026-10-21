@@ -164,13 +164,13 @@
             <!-- Hero Box: Carregar 15 Casas de SP -->
             <div class="cl-batch-hero">
               <div class="cl-batch-hero-title">
-                <span>🏡 16 Modelos de Casas Prontos</span>
+                <span>🏡 20 Modelos de Casas Prontos</span>
               </div>
               <div class="cl-batch-hero-desc">
-                Agende em 1 clique todos os 16 modelos com fotos reais e descrições otimizadas com intervalo programado.
+                Agende em 1 clique todos os 20 modelos com fotos reais e descrições otimizadas com intervalo programado.
               </div>
               <button class="cl-btn cl-btn-primary cl-btn-sm" id="cl-btn-load-15-houses">
-                <span>📦 Carregar os 16 Modelos na Fila</span>
+                <span>📦 Carregar os 20 Modelos na Fila</span>
               </button>
             </div>
 
@@ -2624,7 +2624,7 @@
         showToast('Erro: ' + err.message);
       } finally {
         load15HousesBtn.disabled = false;
-        load15HousesBtn.innerHTML = '<span>📦 Carregar os 16 Modelos na Fila</span>';
+        load15HousesBtn.innerHTML = '<span>📦 Carregar os 20 Modelos na Fila</span>';
       }
     });
 
